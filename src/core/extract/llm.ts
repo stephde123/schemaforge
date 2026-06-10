@@ -133,7 +133,8 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - Always emit a WebSite entity when the website name/url is identifiable.
 - Always include BreadcrumbList if breadcrumbs are visible.
 - Include sameAs with social media profile URLs when they appear in links.
-- For any page: if there is a visible author/founder/team → emit Person entities.
+- For any page: if there is a visible author/founder/team member → emit Person entities with at minimum name and jobTitle.
+- If the page is primarily ABOUT a named individual (biography, "Über mich", "About me", personal profile, portfolio, speaker page, coach page) — regardless of the page type classification — ALWAYS emit a Person entity as the primary entity. Do not wait for a specific classification hint. Use the page text to fill name, jobTitle, description, knowsAbout, hasCredential, sameAs, address.
 - Be thorough: a low coverageScore means important entities or properties were missed.`;
 
 function buildUserPrompt(

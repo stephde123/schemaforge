@@ -208,16 +208,17 @@ const PLACE_OF_WORSHIP_PATTERNS = [
 ];
 
 const PERSON_PROFILE_PATTERNS = [
-  // English
+  // Generic "about me" / biography signals (English + German)
   /\babout\s+me\b/i, /\bmy\s+story\b/i, /\bbiograph(y|ie)\b/i,
-  /\bpersonal\s+trainer\b/i, /\blife\s+coach\b/i, /\bfreelancer\b/i,
-  /\bspeaker\b.*\bauthor\b/i, /\bfounder\s+of\b/i,
-  // German
   /\büber\s+mich\b/i, /\bueber\s+mich\b/i, /\bmeine\s+geschichte\b/i,
-  /\bpersonal\s+coach\b/i, /\bpersönlichkeitsentwicklung\b/i,
-  /\blizenzierter?\s+trainer\b/i, /\bernährungscoach\b/i,
-  /\bmotivationscoach\b/i, /\bselbstständiger?\s+/i,
-  /\bmein\s+weg\b/i,
+  /\bmein\s+weg\b/i, /\bwer\s+bin\s+ich\b/i, /\bich\s+bin\s+\w/i,
+  // Roles that are almost always personal profiles
+  /\bpersonal\s+trainer\b/i, /\blife\s+coach\b/i, /\bfreelancer\b/i,
+  /\bspeaker\b/i, /\bcoach\b/i, /\bberater(in)?\b/i, /\btrainer(in)?\b/i,
+  /\bphotograph(er|in)\b/i, /\bdesigner(in)?\b/i, /\bfreelance\b/i,
+  /\btherapist\b/i, /\btherapeutin?\b/i,
+  /\bpersonal\s+coach\b/i, /\bernährungscoach\b/i, /\bmotivationscoach\b/i,
+  /\blizenzierter?\s+trainer\b/i,
 ];
 
 const TOURIST_ATTRACTION_PATTERNS = [
