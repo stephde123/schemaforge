@@ -186,6 +186,12 @@ export function deterministicExtract(
     entities.push(...videos);
   }
 
+  // 11) Place / LocalBusiness / Church entity with postal address
+  if (classification) {
+    const placeEntity = extractPlaceEntity($, input, classification);
+    if (placeEntity) entities.push(placeEntity);
+  }
+
   return entities;
 }
 
@@ -560,6 +566,115 @@ function softwareNameFromTitle(title?: string): string | undefined {
   }
   // "AdPresso - Advanced Ad Management..." → "AdPresso"
   return (parts[0] ?? title).trim();
+}
+
+// ---------------------------------------------------------------------------
+// Place / LocalBusiness helpers
+// ---------------------------------------------------------------------------
+
+function extractPlaceEntity(
+  $: cheerio.CheerioAPI,
+  input: NormalizedInput,
+  classification: PageClassification,
+): Entity | null {
+  const isPlace =
+    classification.signals.includes("place-of-worship") ||
+    classification.signals.includes("postal-address-de") ||
+    classification.primaryHint === "Church" ||
+    classification.primaryHint === "LocalBusiness" ||
+    classification.additionalHints.includes("PlaceOfWorship");
+
+  if (!isPlace) return null;
+
+  // Name: prefer h1, then og:title minus trailing " - site" suffix
+  const h1 = $("h1").first().text().trim();
+  const ogTitle = $('meta[property="og:title"]').attr("content")?.trim();
+  const name = (h1 || ogTitle?.replace(/\s*[-|–]\s*.+$/, "").trim() || input.title) || undefined;
+
+  const description =
+    $('meta[property="og:description"]').attr("content")?.trim() ||
+    $('meta[name="description"]').attr("content")?.trim();
+
+  const image = $('meta[property="og:image"]').attr("content")?.trim();
+  const url = input.canonicalUrl || input.sourceUrl;
+  const tel = $('a[href^="tel:"]').first().attr("href")?.replace("tel:", "").trim();
+  const email = $('a[href^="mailto:"]').first().attr("href")?.replace("mailto:", "").trim();
+
+  const address = extractPostalAddress($);
+
+  const type =
+    classification.primaryHint === "Church" ? "Church" :
+    classification.additionalHints.includes("PlaceOfWorship") ? "PlaceOfWorship" :
+    "LocalBusiness";
+
+  const props = pruneEmpty({ name, description, url, image, telephone: tel, email, address });
+  if (Object.keys(props).length < 2) return null;
+
+  return { type, props, _source: "deterministic" };
+}
+
+/**
+ * Extract a PostalAddress from footer / address / contact sections.
+ * Supports German 5-digit PLZ ("56154 Boppard") and splits on <br> tags
+ * to recover street + postal-code lines that cheerio .text() collapses.
+ */
+function extractPostalAddress($: cheerio.CheerioAPI): Record<string, unknown> | undefined {
+  // 1) Schema.org microdata wins
+  const micro = $('[itemtype*="PostalAddress"]').first();
+  if (micro.length) {
+    const props = pruneEmpty({
+      "@type": "PostalAddress",
+      streetAddress: micro.find('[itemprop="streetAddress"]').text().trim() || undefined,
+      postalCode:    micro.find('[itemprop="postalCode"]').text().trim()    || undefined,
+      addressLocality: micro.find('[itemprop="addressLocality"]').text().trim() || undefined,
+      addressCountry: micro.find('[itemprop="addressCountry"]').text().trim()  || undefined,
+    });
+    if (Object.keys(props).length > 1) return props as Record<string, unknown>;
+  }
+
+  // 2) Scan footer and contact sections, splitting on <br> to recover address lines
+  let streetAddress: string | undefined;
+  let postalCode: string | undefined;
+  let addressLocality: string | undefined;
+  let addressCountry: string | undefined;
+
+  $("footer p, address, [class*='footer'] p, [class*='contact'] p, [class*='address'] p").each((_, el) => {
+    const lines = ($(el).html() || "")
+      .split(/<br\s*\/?>/i)
+      .map((l) => l.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&[a-z#0-9]+;/gi, " ").trim())
+      .filter(Boolean);
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+      // German PLZ: "56154 Boppard"
+      const plz = line.match(/^(\d{5})\s+(.+)$/);
+      if (plz) {
+        postalCode = plz[1];
+        addressLocality = plz[2]?.trim();
+        addressCountry = "DE";
+        if (i > 0) streetAddress = lines[i - 1];
+        return false as any; // break cheerio.each
+      }
+      // US/CA ZIP: "Springfield, IL 62701" or "62701"
+      const zip = line.match(/,\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
+      if (zip) {
+        postalCode = zip[2];
+        addressLocality = line.replace(zip[0], "").trim();
+        addressCountry = "US";
+        if (i > 0) streetAddress = lines[i - 1];
+        return false as any;
+      }
+    }
+  });
+
+  if (!postalCode && !streetAddress && !addressLocality) return undefined;
+  return pruneEmpty({
+    "@type": "PostalAddress",
+    streetAddress,
+    postalCode,
+    addressLocality,
+    addressCountry,
+  }) as Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------

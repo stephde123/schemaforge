@@ -71,6 +71,14 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - Emit HowTo with name, description, step (array of HowToStep with name, text, position).
 - Include supply/tool if mentioned.
 
+### Place of Worship / Religious Site / Historical Landmark pages
+- Emit the MOST SPECIFIC type: CatholicChurch, BuddhistTemple, HinduTemple, Mosque, Synagogue, Church — or at minimum PlaceOfWorship.
+- For famous/listed buildings also add LandmarksOrHistoricalBuildings and TouristAttraction as parallel types.
+- Populate: name, alternateName, description, url, image, address (PostalAddress with streetAddress, postalCode, addressLocality, addressCountry), telephone, openingHoursSpecification or openingHours, geo (GeoCoordinates), hasMap, sameAs (Wikipedia, Wikidata, social profiles).
+- For historical buildings: include foundingDate or dateCreated if a construction era or century is mentioned (e.g. "12. Jahrhundert" → "12th century").
+- Emit a separate ReligiousOrganization for the managing parish or diocese if named on the page.
+- Always emit a WebSite entity when the site name / url is identifiable.
+
 ### Local Business pages
 - Emit the most specific LocalBusiness subtype (Restaurant, Hotel, MedicalClinic, etc.).
 - Populate: name, address (PostalAddress), telephone, openingHours, geo (GeoCoordinates if lat/lng visible), priceRange, servesCuisine (for restaurants), hasMap.
@@ -154,8 +162,12 @@ const BASE_SEEDS = [
   "ItemList", "BreadcrumbList",
   // Events
   "Event", "OnlineEvent", "EducationEvent",
-  // Local
+  // Local / places
   "Place", "PostalAddress", "GeoCoordinates",
+  "LocalBusiness", "CivicStructure",
+  "Church", "CatholicChurch", "PlaceOfWorship",
+  "TouristAttraction", "LandmarksOrHistoricalBuildings",
+  "ReligiousOrganization", "Museum", "Cemetery",
   // Reviews
   "Review", "AggregateRating",
   // Media

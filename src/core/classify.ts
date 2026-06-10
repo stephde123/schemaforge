@@ -78,6 +78,23 @@ const EVENT_PATTERNS = [
 const LOCAL_BUSINESS_PATTERNS = [
   /opening\s+hours/i, /business\s+hours/i, /we'?re\s+open/i,
   /get\s+directions/i, /find\s+us\b/i, /our\s+address/i,
+  // German equivalents
+  /öffnungszeiten/i, /\banfahrt\b/i, /\bunsere\s+adresse\b/i, /\bkontaktformular\b/i,
+];
+
+const PLACE_OF_WORSHIP_PATTERNS = [
+  // English
+  /\bchurch\b/i, /\bcathedral\b/i, /\bchapel\b/i, /\bbasilica\b/i,
+  /\babbey\b/i, /\bmonastery\b/i, /\bmosque\b/i, /\bsynagogue\b/i, /\btemple\b/i,
+  // German
+  /\bkirche\b/i, /\bbasilika\b/i, /\bdom\b(?!\s*ain)/i, /\bkloster\b/i, /\babtei\b/i,
+  /\bgottesdienst/i, /\bpfarrei\b/i, /\bpfarrkirche\b/i,
+];
+
+const TOURIST_ATTRACTION_PATTERNS = [
+  /historisch/i, /\bjahrhundert\b/i, /\bdenkmal\b/i, /\bmonument\b/i,
+  /\bheritage\b/i, /\bunesco\b/i, /\bwelterbe\b/i, /\bsehenswürdigkeit/i,
+  /tourist\s+attract/i, /\barchitekt(ur)?\b/i,
 ];
 
 export function classifyPage(input: NormalizedInput): PageClassification {
@@ -165,18 +182,44 @@ export function classifyPage(input: NormalizedInput): PageClassification {
 
   // 10) Local business signals
   if (LOCAL_BUSINESS_PATTERNS.some((p) => p.test(text))) {
+    if (primaryHint === "WebPage") primaryHint = "LocalBusiness";
     additional.add("LocalBusiness");
     signals.push("local-business-signals");
   }
 
-  // 11) Article/blog signals from HTML structure
+  // 11) Place of worship / religious site (English + German)
+  if (PLACE_OF_WORSHIP_PATTERNS.some((p) => p.test(text) || p.test(url))) {
+    if (primaryHint === "WebPage" || primaryHint === "LocalBusiness") primaryHint = "Church";
+    additional.add("Church");
+    additional.add("PlaceOfWorship");
+    additional.add("CivicStructure");
+    additional.add("LocalBusiness");
+    signals.push("place-of-worship");
+  }
+
+  // 12) Tourist attraction / historical landmark
+  if (TOURIST_ATTRACTION_PATTERNS.some((p) => p.test(text))) {
+    additional.add("TouristAttraction");
+    additional.add("LandmarksOrHistoricalBuildings");
+    signals.push("tourist-attraction");
+  }
+
+  // 13) German postal code → address present → local business likely
+  if (/\b\d{5}[\s ]?[A-ZÄÖÜ]/i.test(text)) {
+    if (primaryHint === "WebPage") primaryHint = "LocalBusiness";
+    additional.add("LocalBusiness");
+    additional.add("PostalAddress");
+    signals.push("postal-address-de");
+  }
+
+  // 15) Article/blog signals from HTML structure
   if (/<article[\s>]/i.test(html) || html.includes('class="post') || html.includes("class='post")) {
     additional.add("BlogPosting");
     additional.add("Article");
     signals.push("article-html-structure");
   }
 
-  // 12) Video signals
+  // 16) Video signals
   if (html.includes("<video") || html.includes("youtube.com/embed") || html.includes("vimeo.com/video")) {
     additional.add("VideoObject");
     signals.push("video-embed");
