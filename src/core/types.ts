@@ -95,6 +95,8 @@ export interface PipelineResult {
   validation: ValidationReport;
   /** What we recommend the user do with existing markup. */
   recommendation: "add" | "merge" | "replace" | "none";
+  /** Whether the LLM was actually invoked and succeeded, or only deterministic rules ran. */
+  usedMode: "llm" | "deterministic";
 }
 
 /** Caller-supplied context hints (e.g. from the WordPress companion plugin). */

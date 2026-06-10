@@ -131,6 +131,7 @@ async function main() {
       );
       res.json({
         recommendation: result.recommendation,
+        usedMode: result.usedMode,
         detection: {
           hasExistingMarkup: result.detection.hasExistingMarkup,
           detectedPlugins: result.detection.detectedPlugins,

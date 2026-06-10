@@ -109,9 +109,11 @@
 
     /* ── Result area ── */
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-right: 6px; }
-    .badge.add     { color: var(--accent); border-color: var(--accent); }
-    .badge.replace { color: var(--warn);   border-color: var(--warn); }
-    .badge.merge   { color: var(--info);   border-color: var(--info); }
+    .badge.add      { color: var(--accent); border-color: var(--accent); }
+    .badge.replace  { color: var(--warn);   border-color: var(--warn); }
+    .badge.merge    { color: var(--info);   border-color: var(--info); }
+    .badge.mode-llm { color: #c084fc;       border-color: #c084fc; }
+    .badge.mode-det { color: var(--muted);  border-color: var(--muted); }
     pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
     .issues { list-style: none; padding: 0; margin: 8px 0; }
     .issues li { font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
@@ -433,8 +435,11 @@
 
       const rec = data.recommendation;
       const plugins = data.detection.detectedPlugins.join(", ") || "keine";
+      const modeLabel = data.usedMode === "llm" ? "✦ LLM" : "⚙ deterministisch";
+      const modeClass = data.usedMode === "llm" ? "mode-llm" : "mode-det";
       $("detection").innerHTML =
         `<span class="badge ${rec}">Empfehlung: ${rec}</span>` +
+        `<span class="badge ${modeClass}">${modeLabel}</span>` +
         `<div class="meta">Bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins}</div>`;
       $("detection").style.display = "block";
 

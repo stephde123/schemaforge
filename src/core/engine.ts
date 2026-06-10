@@ -59,6 +59,7 @@ export class Engine {
     // Use caller-supplied LLM override first; fall back to server's configured provider.
     const llm = opts.llmOverride ?? this.llm;
     const llmAvailable = mode === "auto" && (opts.llmOverride != null || this.cfg.llmProvider !== "none");
+    let llmUsed = false;
 
     // 3) Classify page type.
     // In auto mode with LLM available: use the LLM type-selector pre-call which
@@ -69,6 +70,7 @@ export class Engine {
     if (llmAvailable) {
       try {
         classification = await llmClassifyPage(normalized, this.brain, llm);
+        llmUsed = true;
       } catch (err) {
         console.warn("[engine] LLM classify failed, using heuristic:", err);
       }
@@ -82,6 +84,7 @@ export class Engine {
       try {
         const deep = await llmExtract(normalized, entities, this.brain, llm, classification, opts.requestContext);
         entities = [...entities, ...deep];
+        llmUsed = true;
       } catch (err) {
         // Never fail the whole run because the LLM hiccuped.
         console.error("[engine] LLM extraction failed:", err);
@@ -106,6 +109,7 @@ export class Engine {
       jsonld,
       validation,
       recommendation: recommend(detection),
+      usedMode: llmUsed ? "llm" : "deterministic",
     };
   }
 }
