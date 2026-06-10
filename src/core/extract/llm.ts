@@ -112,6 +112,16 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 ### Recipe pages
 - Emit Recipe with: name, description, recipeIngredient, recipeInstructions (HowToStep[]), cookTime, prepTime, totalTime, recipeYield, nutrition.
 
+### Person / Personal profile pages (Über mich, About me, coach/trainer/speaker profiles)
+- Emit a Person as the primary entity.
+- Populate: name, jobTitle (most specific role, e.g. "Personal Trainer", "Life Coach"), description (biography summary), url (personal website), image, address (PostalAddress with at least addressLocality and addressCountry), sameAs (social profiles, Wikipedia, LinkedIn).
+- Add knowsAbout for topics of expertise (array of strings).
+- Add hasCredential (EducationalOccupationalCredential) for each listed certification or degree, with credentialCategory and name.
+- Add memberOf (Organization) if affiliation is mentioned.
+- If the person appeared in media (TV, podcast, press), note it in description or sameAs.
+- Also emit a ProfilePage entity whose mainEntity references the Person by @id.
+- Emit WebSite when the site name/url is identifiable.
+
 ### Organization / About pages
 - Emit Organization (or more specific: Corporation, EducationalOrganization, etc.) with: name, url, logo, description, foundingDate, numberOfEmployees, address, sameAs (social profiles).
 - Emit Person entities for founders/team members if named.

@@ -85,10 +85,15 @@ const URL_RULES: [RegExp, string, string[]][] = [
   [/\/museum\/?/i,                  "Museum",               ["TouristAttraction"]],
   [/\/park\/?/i,                    "Park",                 ["TouristAttraction"]],
   // People & profiles
-  [/\/author\//i,                   "Person",               []],
-  [/\/profile\//i,                  "Person",               []],
+  [/\/author\//i,                   "Person",               ["ProfilePage"]],
+  [/\/profile\//i,                  "Person",               ["ProfilePage"]],
   [/\/team\/?(\?.*)?$/i,            "AboutPage",            ["Person"]],
   [/\/about\/?(\?.*)?$/i,           "AboutPage",            ["Organization", "Person"]],
+  [/\/about-me\/?(\?.*)?$/i,        "ProfilePage",          ["Person"]],
+  [/\/ueber-mich\/?(\?.*)?$/i,      "ProfilePage",          ["Person"]],
+  [/\/%C3%BCber-mich/i,              "ProfilePage",          ["Person"]],
+  [/\/about-us\/?(\?.*)?$/i,        "AboutPage",            ["Organization", "Person"]],
+  [/\/über-mich\/?(\?.*)?$/i,       "ProfilePage",          ["Person"]],
   // Contact
   [/\/contact\/?(\?.*)?$/i,         "ContactPage",          ["LocalBusiness", "Organization"]],
   [/\/kontakt\/?(\?.*)?$/i,         "ContactPage",          ["LocalBusiness", "Organization"]],
@@ -200,6 +205,19 @@ const PLACE_OF_WORSHIP_PATTERNS = [
   // German
   /\bkirche\b/i, /\bbasilika\b/i, /\bdom\b(?!\s*ain)/i, /\bkloster\b/i, /\babtei\b/i,
   /\bgottesdienst/i, /\bpfarrei\b/i, /\bpfarrkirche\b/i,
+];
+
+const PERSON_PROFILE_PATTERNS = [
+  // English
+  /\babout\s+me\b/i, /\bmy\s+story\b/i, /\bbiograph(y|ie)\b/i,
+  /\bpersonal\s+trainer\b/i, /\blife\s+coach\b/i, /\bfreelancer\b/i,
+  /\bspeaker\b.*\bauthor\b/i, /\bfounder\s+of\b/i,
+  // German
+  /\büber\s+mich\b/i, /\bueber\s+mich\b/i, /\bmeine\s+geschichte\b/i,
+  /\bpersonal\s+coach\b/i, /\bpersönlichkeitsentwicklung\b/i,
+  /\blizenzierter?\s+trainer\b/i, /\bernährungscoach\b/i,
+  /\bmotivationscoach\b/i, /\bselbstständiger?\s+/i,
+  /\bmein\s+weg\b/i,
 ];
 
 const TOURIST_ATTRACTION_PATTERNS = [
@@ -362,6 +380,14 @@ export function classifyPage(input: NormalizedInput): PageClassification {
     if (primaryHint === "WebPage") primaryHint = "JobPosting";
     additional.add("JobPosting");
     signals.push("job-posting-signals");
+  }
+
+  // 18b) Person / personal profile page
+  if (PERSON_PROFILE_PATTERNS.some((p) => p.test(text) || p.test(url))) {
+    if (primaryHint === "WebPage") primaryHint = "ProfilePage";
+    additional.add("ProfilePage");
+    additional.add("Person");
+    signals.push("person-profile-signals");
   }
 
   // 19) Article/blog signals from HTML structure
