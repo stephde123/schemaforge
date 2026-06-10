@@ -7,16 +7,18 @@ export function deterministicExtract(
   detection: DetectionResult,
   classification?: PageClassification,
 ): Entity[] {
-  const entities: Entity[] = [];
-
-  // 1) Reuse already-present JSON-LD nodes as a strong base.
+  // 1) Collect existing JSON-LD — added at the END so fresh deterministic extraction
+  // wins on conflicts (existing markup may be stale or have encoding issues), but
+  // existing values still fill any gaps (e.g. @id, telephone) that we didn't extract.
+  const existingEntities: Entity[] = [];
   for (const item of detection.existing) {
     if (item.format !== "json-ld") continue;
     for (const node of flattenJsonLd(item.data)) {
       const type = node["@type"];
       if (!type) continue;
-      const { "@type": _t, "@id": id, ...rest } = node;
-      entities.push({
+      // Strip structural JSON-LD keys from props — @context belongs at document level only
+      const { "@type": _t, "@id": id, "@context": _ctx, ...rest } = node;
+      existingEntities.push({
         id: typeof id === "string" ? id : undefined,
         type,
         props: rest,
@@ -25,7 +27,9 @@ export function deterministicExtract(
     }
   }
 
-  if (!input.html) return entities;
+  if (!input.html) return existingEntities;
+
+  const entities: Entity[] = [];
 
   const $ = cheerio.load(input.html);
 
@@ -192,7 +196,8 @@ export function deterministicExtract(
     if (placeEntity) entities.push(placeEntity);
   }
 
-  return entities;
+  // Existing JSON-LD fills gaps in freshly extracted entities (lower priority).
+  return [...entities, ...existingEntities];
 }
 
 // ---------------------------------------------------------------------------

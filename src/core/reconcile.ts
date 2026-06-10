@@ -65,11 +65,25 @@ export async function reconcile(
   return { entities: result };
 }
 
-/** Deterministic reconciliation key: sameAs URI wins, else type+normalized name. */
+// WebPage-family types are canonically identified by URL, not by name.
+// Names can differ across sources due to encoding (e.g. garbled \uXXXX escapes).
+const WEB_PAGE_TYPES = new Set([
+  "WebPage", "AboutPage", "ContactPage", "FAQPage", "ProfilePage",
+  "CollectionPage", "ItemPage", "SearchResultsPage", "CheckoutPage",
+]);
+
+/** Deterministic reconciliation key: sameAs URI wins, else type+normalized identifier. */
 function keyFor(e: Entity): string {
   const sameAs = asArray(e.props["sameAs"]).find((x) => typeof x === "string");
   if (typeof sameAs === "string") return `sameas:${sameAs}`;
   const primaryType = Array.isArray(e.type) ? e.type[0] : e.type;
+
+  // For WebPage-family types, use URL as the key so all sources for the same page
+  // merge correctly regardless of how the name is encoded.
+  if (primaryType && WEB_PAGE_TYPES.has(primaryType) && typeof e.props["url"] === "string") {
+    return `${primaryType}:${normalize(e.props["url"] as string)}`;
+  }
+
   const name =
     typeof e.props["name"] === "string"
       ? (e.props["name"] as string)
