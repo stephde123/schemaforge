@@ -13,87 +13,227 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); }
-    header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
+
+    /* ── Login screen ── */
+    #login-screen {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: var(--bg); z-index: 100;
+    }
+    .login-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 36px 40px; width: 360px;
+    }
+    .login-card h2 { margin: 0 0 6px; font-size: 22px; }
+    .login-card p { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+    .login-err { color: var(--err); font-size: 13px; min-height: 18px; margin: 0 0 6px; }
+
+    /* ── Main app ── */
+    #app { display: none; }
+    header {
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 12px; }
     header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
     header .tag { color: var(--muted); font-size: 13px; }
-    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 59px); }
+    .logout-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+      width: auto; margin-top: 0;
+    }
+    .logout-btn:hover { color: var(--fg); border-color: var(--fg); }
+
+    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 57px); }
     .left { padding: 20px; border-right: 1px solid var(--border); overflow: auto; }
     .right { padding: 20px; overflow: auto; }
-    label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+
+    label {
+      display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px;
+      text-transform: uppercase; letter-spacing: .5px;
+    }
     input, textarea, select {
       width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--fg);
       border-radius: 8px; padding: 10px 12px; font-family: var(--sans); font-size: 14px;
     }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
     textarea { resize: vertical; font-family: var(--mono); font-size: 12px; }
     button {
       margin-top: 16px; width: 100%; background: var(--accent); color: #06281d; border: 0;
       border-radius: 8px; padding: 12px; font-weight: 600; font-size: 14px; cursor: pointer;
     }
     button:disabled { opacity: .5; cursor: progress; }
+
+    hr.divider { border: 0; border-top: 1px solid var(--border); margin: 16px 0 0; }
+
+    .key-box {
+      border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+      margin-top: 14px;
+    }
+    .key-box label { margin-top: 0; }
+    .key-box label:not(:first-child) { margin-top: 10px; }
+    .key-hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
+    .key-hint.active { color: var(--accent); }
+
+    .mode-note { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); margin-right: 6px; }
-    .badge.add { color: var(--accent); border-color: var(--accent); }
+    .badge.add    { color: var(--accent); border-color: var(--accent); }
     .badge.replace { color: var(--warn); border-color: var(--warn); }
-    .badge.merge { color: #93c5fd; border-color: #93c5fd; }
+    .badge.merge  { color: #93c5fd; border-color: #93c5fd; }
     pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
     .issues { list-style: none; padding: 0; margin: 10px 0; }
     .issues li { font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
     .lvl-error { color: var(--err); } .lvl-warning { color: var(--warn); } .lvl-info { color: var(--muted); }
     .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-    .cov { font-size: 13px; }
+    .cov  { font-size: 13px; }
     .copy { margin-top: 0; width: auto; padding: 6px 12px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); }
-    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .row  { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>SchemaForge</h1>
-    <span class="tag">tiefes schema.org / JSON-LD Markup</span>
-  </header>
-  <main>
-    <section class="left">
-      <label for="url">URL</label>
-      <input id="url" placeholder="https://example.com/seite" />
 
-      <label for="text">Zusatztext (optional)</label>
-      <textarea id="text" rows="4" placeholder="Kontext, der nicht auf der Seite steht…"></textarea>
+  <!-- ── Login ── -->
+  <div id="login-screen">
+    <div class="login-card">
+      <h2>SchemaForge</h2>
+      <p>Bitte anmelden, um fortzufahren.</p>
+      <div class="login-err" id="login-err"></div>
+      <label for="login-user">Benutzername</label>
+      <input id="login-user" type="text" autocomplete="username" />
+      <label for="login-pass">Passwort</label>
+      <input id="login-pass" type="password" autocomplete="current-password" />
+      <button id="login-btn">Anmelden</button>
+    </div>
+  </div>
 
-      <label for="html">…oder HTML direkt einfügen</label>
-      <textarea id="html" rows="6" placeholder="<html>…</html>"></textarea>
-
-      <label for="mode">Modus</label>
-      <select id="mode">
-        <option value="auto">Auto (deterministisch + LLM-Tiefe)</option>
-        <option value="deterministic">Nur deterministisch</option>
-      </select>
-
-      <button id="run">Markup erzeugen</button>
-    </section>
-
-    <section class="right">
-      <div id="status" class="meta">Bereit. Gib eine URL ein oder füge HTML ein.</div>
-
-      <div id="detection"></div>
-
-      <div id="validation"></div>
-
-      <div class="row">
-        <label style="margin:18px 0 6px;">JSON-LD</label>
-        <button class="copy" id="copy">kopieren (Script-Tag)</button>
+  <!-- ── App ── -->
+  <div id="app">
+    <header>
+      <div class="header-left">
+        <h1>SchemaForge</h1>
+        <span class="tag">tiefes schema.org / JSON-LD Markup</span>
       </div>
-      <pre id="output">—</pre>
-    </section>
-  </main>
+      <button class="logout-btn" id="logout-btn">Abmelden</button>
+    </header>
+
+    <main>
+      <section class="left">
+        <label for="url">URL</label>
+        <input id="url" placeholder="https://example.com/seite" />
+
+        <label for="text">Zusatztext (optional)</label>
+        <textarea id="text" rows="4" placeholder="Kontext, der nicht auf der Seite steht…"></textarea>
+
+        <label for="html">…oder HTML direkt einfügen</label>
+        <textarea id="html" rows="6" placeholder="<html>…</html>"></textarea>
+
+        <hr class="divider" />
+
+        <div class="key-box">
+          <label for="api-provider">LLM-Provider</label>
+          <select id="api-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+
+          <label for="api-key">
+            Eigener API-Key
+            <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
+          </label>
+          <input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />
+          <div class="key-hint" id="key-hint">Ohne Key: nur deterministischer Modus (kostenlos, keine LLM-Calls)</div>
+        </div>
+
+        <label for="mode">Modus</label>
+        <select id="mode">
+          <option value="deterministic">Nur deterministisch</option>
+          <option value="auto" id="mode-auto" disabled>Auto (deterministisch + LLM-Tiefe)</option>
+        </select>
+        <div class="mode-note" id="mode-note">LLM-Modus verfügbar, sobald du einen API-Key eingibst</div>
+
+        <button id="run">Markup erzeugen</button>
+      </section>
+
+      <section class="right">
+        <div id="status" class="meta">Bereit. Gib eine URL ein oder füge HTML ein.</div>
+        <div id="detection"></div>
+        <div id="validation"></div>
+        <div class="row">
+          <label style="margin:18px 0 6px;">JSON-LD</label>
+          <button class="copy" id="copy">kopieren (Script-Tag)</button>
+        </div>
+        <pre id="output">—</pre>
+      </section>
+    </main>
+  </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    let session = sessionStorage.getItem("sf_token");
     let lastScriptTag = "";
 
+    // ── Auth helpers ──
+    function authHeaders() {
+      return { "Authorization": "Bearer " + session, "Content-Type": "application/json" };
+    }
+    function showApp()   { $("login-screen").style.display = "none"; $("app").style.display = "block"; }
+    function showLogin() { $("login-screen").style.display = "flex"; $("app").style.display = "none"; }
+
+    if (session) showApp();
+
+    $("login-btn").addEventListener("click", async () => {
+      $("login-btn").disabled = true;
+      $("login-err").textContent = "";
+      try {
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user: $("login-user").value, password: $("login-pass").value }),
+        });
+        const data = await res.json();
+        if (!res.ok) { $("login-err").textContent = data.error || "Anmeldefehler"; return; }
+        session = data.token;
+        sessionStorage.setItem("sf_token", session);
+        showApp();
+      } catch { $("login-err").textContent = "Verbindungsfehler"; }
+      finally   { $("login-btn").disabled = false; }
+    });
+    $("login-pass").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-btn").click(); });
+    $("login-user").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-pass").focus(); });
+
+    $("logout-btn").addEventListener("click", async () => {
+      await fetch("/api/logout", { method: "POST", headers: authHeaders() }).catch(() => {});
+      session = null;
+      sessionStorage.removeItem("sf_token");
+      showLogin();
+    });
+
+    // ── API key toggles LLM mode ──
+    $("api-key").addEventListener("input", () => {
+      const hasKey = $("api-key").value.trim().length > 0;
+      $("mode-auto").disabled = !hasKey;
+      if (hasKey) {
+        $("mode").value = "auto";
+        $("mode-note").textContent = "";
+        $("key-hint").textContent = "Key wird nur für diesen Request verwendet — wird nicht gespeichert.";
+        $("key-hint").className = "key-hint active";
+      } else {
+        $("mode").value = "deterministic";
+        $("mode-note").textContent = "LLM-Modus verfügbar, sobald du einen API-Key eingibst";
+        $("key-hint").textContent = "Ohne Key: nur deterministischer Modus (kostenlos, keine LLM-Calls)";
+        $("key-hint").className = "key-hint";
+      }
+    });
+
+    // ── Generate ──
     $("run").addEventListener("click", async () => {
+      const apiKey = $("api-key").value.trim();
       const body = {
-        url: $("url").value.trim() || undefined,
+        url:  $("url").value.trim()  || undefined,
         text: $("text").value.trim() || undefined,
         html: $("html").value.trim() || undefined,
         mode: $("mode").value,
+        ...(apiKey ? { apiKey, provider: $("api-provider").value } : {}),
       };
       $("run").disabled = true;
       $("status").textContent = "Analysiere…";
@@ -102,9 +242,10 @@
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify(body),
         });
+        if (res.status === 401) { session = null; sessionStorage.removeItem("sf_token"); showLogin(); return; }
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Fehler");
         render(data);
@@ -116,9 +257,7 @@
       }
     });
 
-    $("copy").addEventListener("click", () => {
-      if (lastScriptTag) navigator.clipboard.writeText(lastScriptTag);
-    });
+    $("copy").addEventListener("click", () => { if (lastScriptTag) navigator.clipboard.writeText(lastScriptTag); });
 
     function render(data) {
       lastScriptTag = data.scriptTag || "";
@@ -127,7 +266,6 @@
       $("detection").innerHTML =
         `<span class="badge ${rec}">Empfehlung: ${rec}</span>` +
         `<div class="meta">Bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins}</div>`;
-
       const v = data.validation;
       const items = v.issues.map(i =>
         `<li class="lvl-${i.level}">[${i.level}] ${i.subject ? i.subject + ": " : ""}${i.message}</li>`
@@ -135,7 +273,6 @@
       $("validation").innerHTML =
         `<div class="cov">Coverage-Score: <b>${v.coverageScore}</b></div>` +
         (items ? `<ul class="issues">${items}</ul>` : `<div class="meta">Keine Probleme gefunden.</div>`);
-
       $("output").textContent = JSON.stringify(data.jsonld, null, 2);
     }
   </script>
