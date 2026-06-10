@@ -8,7 +8,7 @@
     :root {
       --bg: #0f1115; --panel: #171a21; --border: #262b36; --fg: #e6e9ef;
       --muted: #8b93a3; --accent: #6ee7b7; --err: #f87171; --warn: #fbbf24;
-      --info: #93c5fd;
+      --info: #93c5fd; --purple: #c084fc;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
@@ -17,28 +17,31 @@
 
     /* ── Header ── */
     header {
-      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      padding: 12px 24px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
     }
     .header-left { display: flex; align-items: baseline; gap: 10px; }
     header h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
     header .tag { color: var(--muted); font-size: 12px; }
     .header-right { display: flex; align-items: center; gap: 10px; font-size: 13px; }
-    .user-badge { color: var(--accent); }
+
+    /* ── Buttons ── */
     .btn-sm {
       background: none; border: 1px solid var(--border); color: var(--muted);
-      border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer;
-      width: auto; margin-top: 0;
+      border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer; white-space: nowrap;
     }
     .btn-sm:hover { color: var(--fg); border-color: var(--fg); }
     .btn-sm.primary { background: var(--accent); color: #06281d; border-color: var(--accent); font-weight: 600; }
     .btn-sm.primary:hover { opacity: .9; }
+    .run-btn {
+      margin-top: 16px; width: 100%; background: var(--accent); color: #06281d; border: 0;
+      border-radius: 8px; padding: 11px; font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    .run-btn:disabled { opacity: .45; cursor: progress; }
 
     /* ── Login modal ── */
     #login-modal { display: none; }
-    .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50;
-    }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; }
     .modal-card {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
       z-index: 51; background: var(--panel); border: 1px solid var(--border);
@@ -49,70 +52,100 @@
     .login-err { color: var(--err); font-size: 12px; min-height: 16px; margin: 0 0 6px; }
 
     /* ── Layout ── */
-    main {
-      display: grid; grid-template-columns: 390px 1fr; gap: 0;
-      height: calc(100vh - 53px);
-    }
-    .left  { padding: 18px 20px; border-right: 1px solid var(--border); overflow: auto; }
+    main { display: grid; grid-template-columns: 390px 1fr; height: calc(100vh - 49px); }
+    .left  { padding: 16px 18px; border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; gap: 0; }
     .right { padding: 20px; overflow: auto; }
 
     /* ── Form controls ── */
-    label {
-      display: block; font-size: 11px; color: var(--muted); margin: 14px 0 5px;
+    .field-label {
+      display: block; font-size: 11px; color: var(--muted); margin: 12px 0 5px;
       text-transform: uppercase; letter-spacing: .5px;
     }
+    .field-label:first-child { margin-top: 0; }
     input, textarea, select {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg);
       border-radius: 7px; padding: 9px 11px; font-family: var(--sans); font-size: 14px;
     }
     input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
     textarea { resize: vertical; font-family: var(--mono); font-size: 12px; }
-    .run-btn {
-      margin-top: 16px; width: 100%; background: var(--accent); color: #06281d; border: 0;
-      border-radius: 8px; padding: 11px; font-weight: 600; font-size: 14px; cursor: pointer;
-    }
-    .run-btn:disabled { opacity: .45; cursor: progress; }
-
-    /* ── Hint texts ── */
-    .hint {
-      font-size: 11px; color: var(--muted); margin: 4px 0 0; line-height: 1.5;
-    }
+    .hint { font-size: 11px; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
     .hint.ok { color: var(--accent); }
+    hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 
-    /* ── Section divider ── */
-    hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
-
-    /* ── LLM access box ── */
-    .llm-box {
-      border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 2px;
-    }
-    .llm-box label { margin-top: 0; }
-    .llm-box label + label { margin-top: 10px; }
-    .llm-server-badge {
+    /* ── Access section ── */
+    .access-logged-in {
       display: flex; align-items: center; gap: 8px;
-      font-size: 13px; color: var(--accent); padding: 2px 0;
+      background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+      border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+      border-radius: 8px; padding: 10px 12px;
     }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-
-    /* ── Mode description ── */
-    .mode-desc { font-size: 11px; color: var(--muted); margin: 5px 0 0; line-height: 1.5; }
-
-    /* ── Info panel (right side, initial state) ── */
-    .info-panel {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-      padding: 16px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.6;
+    .access-logged-in .user-name { color: var(--accent); font-size: 13px; font-weight: 500; flex: 1; }
+    .access-logged-in .srv-note { color: var(--muted); font-size: 11px; }
+    .access-anon {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
     }
-    .info-panel h4 { margin: 0 0 10px; font-size: 13px; color: var(--info); }
-    .info-panel ul { margin: 0; padding-left: 18px; color: var(--muted); }
-    .info-panel ul li { margin-bottom: 5px; }
-    .info-panel ul li b { color: var(--fg); }
+    .access-anon-top {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .access-anon-top span { color: var(--muted); font-size: 12px; flex: 1; }
+
+    /* ── Mode selector ── */
+    .mode-cards { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+    .mode-card {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      cursor: pointer; display: flex; gap: 10px; align-items: flex-start;
+      transition: border-color .15s;
+    }
+    .mode-card:hover:not(.disabled) { border-color: var(--muted); }
+    .mode-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+    .mode-card.disabled { opacity: .45; cursor: not-allowed; }
+    .mode-radio {
+      width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border);
+      flex-shrink: 0; margin-top: 2px; transition: border-color .15s;
+    }
+    .mode-card.active .mode-radio { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+    .mode-card-name { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+    .mode-badge {
+      font-size: 10px; padding: 1px 6px; border-radius: 999px;
+      background: color-mix(in srgb, var(--purple) 15%, transparent);
+      color: var(--purple); border: 1px solid color-mix(in srgb, var(--purple) 30%, transparent);
+    }
+    .mode-badge.needs-llm {
+      background: color-mix(in srgb, var(--warn) 10%, transparent);
+      color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+    }
+    .mode-card-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+
+    /* ── Input tabs ── */
+    .tabs-row { display: flex; gap: 2px; margin-bottom: 8px; }
+    .tab-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 5px 14px; font-size: 12px; cursor: pointer;
+    }
+    .tab-btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+    /* ── Extra text reveal ── */
+    .extra-reveal {
+      margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px;
+      background: color-mix(in srgb, var(--info) 4%, transparent);
+      border-color: color-mix(in srgb, var(--info) 20%, var(--border));
+    }
+    .extra-reveal-header {
+      display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    }
+    .extra-reveal-title { font-size: 12px; color: var(--info); font-weight: 500; }
+    .extra-reveal-arrow { font-size: 10px; color: var(--muted); transition: transform .2s; }
+    .extra-reveal-arrow.open { transform: rotate(90deg); }
+    .extra-reveal-body { margin-top: 10px; display: none; }
+    .extra-reveal-body.open { display: block; }
 
     /* ── Result area ── */
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-right: 6px; }
-    .badge.add      { color: var(--accent); border-color: var(--accent); }
-    .badge.replace  { color: var(--warn);   border-color: var(--warn); }
-    .badge.merge    { color: var(--info);   border-color: var(--info); }
-    .badge.mode-llm { color: #c084fc;       border-color: #c084fc; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-right: 5px; }
+    .badge.add     { color: var(--accent); border-color: var(--accent); }
+    .badge.replace { color: var(--warn);   border-color: var(--warn); }
+    .badge.merge   { color: var(--info);   border-color: var(--info); }
+    .badge.mode-llm { color: var(--purple); border-color: var(--purple); }
     .badge.mode-det { color: var(--muted);  border-color: var(--muted); }
     pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
     .issues { list-style: none; padding: 0; margin: 8px 0; }
@@ -120,12 +153,43 @@
     .lvl-error   { color: var(--err); }
     .lvl-warning { color: var(--warn); }
     .lvl-info    { color: var(--muted); }
-    .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-    .cov  { font-size: 13px; }
-    .copy { margin-top: 0; width: auto; padding: 5px 11px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+    .meta  { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+    .cov   { font-size: 13px; }
+    .copy  { margin-top: 0; padding: 5px 11px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
     .copy:hover { border-color: var(--fg); }
-    .row  { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .status-line { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .row   { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .status-line { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+
+    /* ── Info + Registry panel ── */
+    .info-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 14px; font-size: 13px; line-height: 1.6;
+    }
+    .info-panel h4 { margin: 0 0 10px; font-size: 12px; color: var(--info); text-transform: uppercase; letter-spacing: .5px; }
+    .info-item { margin-bottom: 8px; }
+    .info-item b { color: var(--fg); font-size: 13px; }
+    .info-item span { color: var(--muted); font-size: 12px; }
+
+    .registry-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; font-size: 13px;
+    }
+    .registry-panel h4 { margin: 0 0 10px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .5px; }
+    .reg-stats { display: flex; gap: 20px; margin-bottom: 12px; }
+    .reg-stat { text-align: center; }
+    .reg-stat-val { font-size: 22px; font-weight: 600; color: var(--fg); }
+    .reg-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .reg-global-note { font-size: 11px; color: var(--muted); margin-bottom: 10px; padding: 5px 8px; background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 5px; border-left: 2px solid var(--warn); }
+    .reg-list { list-style: none; padding: 0; margin: 0; }
+    .reg-list li {
+      display: flex; align-items: baseline; gap: 6px; padding: 5px 0;
+      border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .reg-list li:last-child { border-bottom: 0; }
+    .reg-type { color: var(--info); font-family: var(--mono); font-size: 11px; flex-shrink: 0; }
+    .reg-name { color: var(--fg); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reg-time { color: var(--muted); font-size: 10px; flex-shrink: 0; }
+    .reg-loading { color: var(--muted); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -137,9 +201,7 @@
       <span class="tag">schema.org / JSON-LD Generator</span>
       <span class="tag" id="api-version" style="opacity:.5"></span>
     </div>
-    <div class="header-right" id="auth-area">
-      <!-- filled by JS -->
-    </div>
+    <div class="header-right" id="auth-area"><!-- filled by JS --></div>
   </header>
 
   <!-- ── Login modal ── -->
@@ -147,14 +209,14 @@
     <div class="modal-backdrop" id="modal-backdrop"></div>
     <div class="modal-card">
       <h3>Anmelden</h3>
-      <p>Als Admin hat der Server-Key automatisch LLM-Zugang.</p>
+      <p>Als Admin steht der Server-LLM-Key automatisch zur Verfügung.</p>
       <div class="login-err" id="login-err"></div>
-      <label for="login-user">Benutzername</label>
+      <label class="field-label" for="login-user">Benutzername</label>
       <input id="login-user" type="text" autocomplete="username" />
-      <label for="login-pass">Passwort</label>
+      <label class="field-label" for="login-pass">Passwort</label>
       <input id="login-pass" type="password" autocomplete="current-password" />
-      <button class="run-btn" id="login-btn" style="margin-top:14px;">Anmelden</button>
-      <button class="btn-sm" id="login-cancel" style="margin-top:8px;width:100%;text-align:center;">Abbrechen</button>
+      <button class="run-btn" id="login-btn" style="margin-top:14px">Anmelden</button>
+      <button class="btn-sm" id="login-cancel" style="margin-top:8px;width:100%;text-align:center">Abbrechen</button>
     </div>
   </div>
 
@@ -162,31 +224,67 @@
   <main>
     <section class="left">
 
-      <label for="url">URL</label>
-      <input id="url" type="url" placeholder="https://example.com/seite" />
-      <div class="hint">Wird bei jedem Lauf neu abgerufen. Mehrere Läufe derselben URL werden in der Registry zusammengeführt.</div>
+      <!-- 1. LLM-Zugang -->
+      <label class="field-label">LLM-Zugang</label>
+      <div id="access-section"><!-- filled by JS --></div>
 
-      <label for="text">Zusatztext <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
-      <textarea id="text" rows="3" placeholder="Kontext, der nicht auf der Seite steht — z.B. Gründungsjahr, Zielgruppe, interne Kategorien…"></textarea>
-      <div class="hint">Funktioniert in beiden Modi. Kann auch erst im zweiten Lauf ergänzt werden — die Registry fügt neues Wissen hinzu, ohne vorherige Daten zu überschreiben.</div>
-
-      <label for="html">HTML direkt einfügen <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional, statt URL)</span></label>
-      <textarea id="html" rows="5" placeholder="<html>…</html>"></textarea>
+      <!-- 2. Modus -->
+      <label class="field-label" style="margin-top:14px">Modus</label>
+      <div class="mode-cards">
+        <div class="mode-card" id="mode-card-auto" data-mode="auto">
+          <div class="mode-radio"></div>
+          <div style="flex:1">
+            <div class="mode-card-name">
+              Auto
+              <span class="mode-badge" id="auto-badge">LLM-Tiefe</span>
+            </div>
+            <div class="mode-card-desc">Regelbasierte Analyse + KI-Vertiefung. Versteht implizite Zusammenhänge, ergänzt Felder die im HTML nicht explizit stehen.</div>
+          </div>
+        </div>
+        <div class="mode-card" id="mode-card-deterministic" data-mode="deterministic">
+          <div class="mode-radio"></div>
+          <div style="flex:1">
+            <div class="mode-card-name">Deterministisch</div>
+            <div class="mode-card-desc">Regelbasierte HTML-Analyse. Kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen direkt aus dem Markup.</div>
+          </div>
+        </div>
+      </div>
 
       <hr />
 
-      <!-- LLM access: adapts to login state -->
-      <label>LLM-Zugang</label>
-      <div class="llm-box" id="llm-box">
-        <!-- filled by JS based on auth state -->
+      <!-- 3. Eingabe (URL / HTML tabs) -->
+      <div class="tabs-row">
+        <button class="tab-btn active" id="tab-url-btn">URL</button>
+        <button class="tab-btn" id="tab-html-btn">HTML direkt</button>
       </div>
 
-      <label for="mode">Modus</label>
-      <select id="mode">
-        <option value="deterministic">Deterministisch</option>
-        <option value="auto" id="mode-auto">Auto (deterministisch + LLM-Tiefe)</option>
-      </select>
-      <div class="mode-desc" id="mode-desc"></div>
+      <div id="input-url-wrap">
+        <input id="url" type="url" placeholder="https://example.com/seite" />
+        <div class="hint">Wird bei jedem Lauf neu abgerufen. Mehrere Läufe derselben URL werden im Gedächtnis zusammengeführt.</div>
+      </div>
+
+      <div id="input-html-wrap" style="display:none">
+        <textarea id="html" rows="7" placeholder="<html>…</html>"></textarea>
+        <div class="hint">Direktes HTML statt URL — z.B. für lokale Seiten oder gesicherte Bereiche.</div>
+      </div>
+
+      <!-- 4. Zusatztext (nur nach erstem Lauf im Auto-Modus) -->
+      <div id="extra-wrap" style="display:none">
+        <div class="extra-reveal">
+          <div class="extra-reveal-header" id="extra-toggle">
+            <span class="extra-reveal-title">▸ Zusatztext ergänzen</span>
+            <span class="extra-reveal-arrow" id="extra-arrow">›</span>
+          </div>
+          <div class="extra-reveal-body" id="extra-body">
+            <div class="hint" style="margin:0 0 8px">
+              <b style="color:var(--fg)">Das LLM behandelt diesen Text als verbindliche Anweisung</b> — er hat Vorrang vor allem, was aus der Seite ausgelesen wird.<br><br>
+              Ergänze Fakten, die auf der Seite fehlen (<em>„Gegründet 1998, 12 Mitarbeiter, B2B-Zielgruppe"</em>), oder erzwinge bestimmte Felder (<em>„Stelle sicher, dass birthDate erscheint"</em>).<br><br>
+              Mehrere Läufe mit verschiedenen Texten möglich — das Gedächtnis führt alles zusammen.
+            </div>
+            <textarea id="text" rows="4" placeholder='z.B. "Gegründet 1998 in Berlin. Zielgruppe: B2B. Mitarbeiterzahl: 45." oder "Erzwinge jobTitle: Geschäftsführer und birthDate."'></textarea>
+          </div>
+        </div>
+      </div>
 
       <button class="run-btn" id="run">Markup erzeugen</button>
 
@@ -195,24 +293,30 @@
     <section class="right">
       <div class="status-line" id="status">Bereit.</div>
 
-      <div class="info-panel" id="info-panel">
-        <h4>Wie SchemaForge funktioniert</h4>
-        <ul>
-          <li><b>Deterministisch</b> — regelbasierte HTML-Analyse. Kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen direkt aus dem Markup.</li>
-          <li><b>Auto (LLM-Tiefe)</b> — kombiniert die regelbasierte Analyse mit einem Sprachmodell. Versteht implizite Zusammenhänge und ergänzt Felder, die im HTML nicht explizit strukturiert sind. Verbraucht API-Token.</li>
-          <li><b>Iteratives Anreichern</b> — erst URL analysieren, Schema prüfen, dann Zusatztext ergänzen und erneut generieren. Funktioniert mit beiden Modi in beliebiger Reihenfolge.</li>
-          <li><b>Registry (Gedächtnis)</b> — SchemaForge merkt sich extrahierte Entitäten über Läufe hinaus. Folge-Läufe ergänzen fehlendes Wissen; aktuellere Daten haben immer Vorrang.</li>
-        </ul>
+      <!-- Info panel + Registry (initial state) -->
+      <div id="info-wrap">
+        <div class="info-panel">
+          <h4>Wie SchemaForge funktioniert</h4>
+          <div class="info-item"><b>Deterministisch</b><br><span>Regelbasierte HTML-Analyse. Kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen direkt aus dem Markup.</span></div>
+          <div class="info-item"><b>Auto (LLM-Tiefe)</b><br><span>Kombiniert die regelbasierte Analyse mit einem Sprachmodell. Versteht implizite Zusammenhänge und ergänzt Felder, die im HTML nicht explizit strukturiert sind. Verbraucht API-Token.</span></div>
+          <div class="info-item"><b>Iteratives Anreichern</b><br><span>Erst URL analysieren, Ergebnis prüfen, dann Zusatztext ergänzen und erneut generieren — am wirkungsvollsten im Auto-Modus. Das Gedächtnis führt alle Läufe zusammen.</span></div>
+          <div class="info-item" style="margin-bottom:0"><b>Gedächtnis (Registry)</b><br><span>SchemaForge merkt sich extrahierte Entitäten über Läufe hinaus. Der aktuelle Lauf hat immer Vorrang; das Gedächtnis ergänzt nur, was der aktuelle Lauf nicht gefunden hat. Aktuell server-weit geteilt.</span></div>
+        </div>
+
+        <div class="registry-panel" id="registry-panel" style="display:none">
+          <h4>Gedächtnis (Registry)</h4>
+          <div id="registry-content" class="reg-loading">Lädt…</div>
+        </div>
       </div>
 
-      <div id="detection" style="display:none;"></div>
-      <div id="validation" style="display:none;"></div>
+      <div id="detection" style="display:none"></div>
+      <div id="validation" style="display:none"></div>
 
-      <div class="row" id="output-header" style="display:none;">
-        <label style="margin:0;">JSON-LD</label>
+      <div class="row" id="output-header" style="display:none">
+        <label style="margin:0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">JSON-LD</label>
         <button class="copy" id="copy">kopieren (Script-Tag)</button>
       </div>
-      <pre id="output" style="display:none;"></pre>
+      <pre id="output" style="display:none"></pre>
     </section>
   </main>
 
@@ -221,47 +325,48 @@
     let session = sessionStorage.getItem("sf_token");
     let loggedInUser = null;
     let serverHasLlm = false;
+    let currentMode = "auto";
+    let hasRunOnce = false;
     let lastScriptTag = "";
 
     // ── Bootstrap ──
     async function init() {
-      // 1) Check server LLM capability
       try {
         const h = await fetch("/api/health").then(r => r.json());
         serverHasLlm = h.provider && h.provider !== "none";
         if (h.version) $("api-version").textContent = "v" + h.version;
       } catch {}
 
-      // 2) Verify stored session
       if (session) {
         try {
           const me = await fetch("/api/me", { headers: authHeaders() });
           if (me.ok) {
             loggedInUser = (await me.json()).user;
           } else {
-            session = null;
-            sessionStorage.removeItem("sf_token");
+            session = null; sessionStorage.removeItem("sf_token");
           }
-        } catch {
-          session = null;
-          sessionStorage.removeItem("sf_token");
-        }
+        } catch { session = null; sessionStorage.removeItem("sf_token"); }
       }
 
-      renderAuthArea();
-      renderLlmBox();
-      updateModeOptions();
+      renderAll();
     }
 
-    // ── Auth helpers ──
     function authHeaders() {
       return { "Authorization": "Bearer " + session, "Content-Type": "application/json" };
     }
 
-    function renderAuthArea() {
+    // ── Render everything ──
+    function renderAll() {
+      renderHeader();
+      renderAccess();
+      updateMode(currentMode);
+      updateExtraWrap();
+    }
+
+    function renderHeader() {
       if (loggedInUser) {
         $("auth-area").innerHTML =
-          `<span class="user-badge">${loggedInUser}</span>` +
+          `<span style="color:var(--accent);font-size:13px">${loggedInUser}</span>` +
           `<button class="btn-sm" id="logout-btn">Abmelden</button>`;
         $("logout-btn").addEventListener("click", doLogout);
       } else {
@@ -270,64 +375,176 @@
       }
     }
 
-    function renderLlmBox() {
+    function renderAccess() {
       if (loggedInUser) {
-        $("llm-box").innerHTML =
-          `<div class="llm-server-badge"><div class="dot"></div>Server-Key aktiv — Auto-Modus verfügbar</div>` +
-          `<div class="hint ok" style="margin-top:6px;">Eigener API-Key nur nötig, wenn du einen anderen Provider nutzen möchtest.</div>` +
-          `<label for="api-provider" style="margin-top:10px;">Provider überschreiben <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>` +
-          `<select id="api-provider"><option value="">— Server-Key verwenden —</option><option value="openai">OpenAI (eigener Key)</option><option value="anthropic">Anthropic (eigener Key)</option></select>` +
-          `<div id="own-key-wrap" style="display:none;">` +
-          `<label for="api-key" style="margin-top:10px;">Eigener API-Key</label>` +
-          `<input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />` +
-          `<div class="hint" id="key-hint">Wird nur für diesen Request verwendet — nie gespeichert.</div>` +
+        $("access-section").innerHTML =
+          `<div class="access-logged-in">` +
+          `<div class="dot"></div>` +
+          `<div><div class="user-name">${loggedInUser}</div><div class="srv-note">Server-LLM aktiv — Auto-Modus freigeschaltet</div></div>` +
           `</div>`;
-        $("api-provider").addEventListener("change", () => {
-          $("own-key-wrap").style.display = $("api-provider").value ? "block" : "none";
-        });
+        // Auto-Modus aktivieren wenn noch deterministisch
+        if (currentMode === "deterministic") updateMode("auto");
       } else {
-        $("llm-box").innerHTML =
-          `<div class="hint" style="margin:0 0 10px;">Ohne Anmeldung: kostenloser deterministischer Modus. Eigenen API-Key eingeben für LLM-Tiefe.</div>` +
-          `<label for="api-provider" style="margin-top:0;">Provider</label>` +
+        $("access-section").innerHTML =
+          `<div class="access-anon">` +
+          `<div class="access-anon-top">` +
+          `<span>Kein LLM-Zugang — deterministischer Modus kostenlos.</span>` +
+          `<button class="btn-sm primary" id="open-login-btn2">Anmelden</button>` +
+          `</div>` +
+          `<label class="field-label" style="margin-top:4px">Provider</label>` +
           `<select id="api-provider"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option></select>` +
-          `<label for="api-key" style="margin-top:10px;">API-Key <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>` +
+          `<label class="field-label" style="margin-top:8px">Eigener API-Key <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>` +
           `<input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />` +
-          `<div class="hint" id="key-hint">Ohne Key: nur deterministischer Modus möglich.</div>`;
+          `<div class="hint" id="key-hint">Ohne Key: nur deterministischer Modus möglich.</div>` +
+          `</div>`;
+        $("open-login-btn2").addEventListener("click", openLoginModal);
         $("api-key").addEventListener("input", onKeyInput);
+        updateModeAvailability();
       }
+
+      updateRegistryPanel();
     }
 
     function onKeyInput() {
-      const hasKey = $("api-key").value.trim().length > 0;
-      $("key-hint").textContent = hasKey
-        ? "Key wird nur für diesen Request gesendet — nie gespeichert."
-        : "Ohne Key: nur deterministischer Modus möglich.";
-      $("key-hint").className = hasKey ? "hint ok" : "hint";
-      updateModeOptions();
-    }
-
-    function updateModeOptions() {
-      const hasOwnKey = !!($("api-key") && $("api-key").value.trim());
-      const autoAvailable = loggedInUser
-        ? (serverHasLlm || hasOwnKey)
-        : hasOwnKey;
-
-      $("mode-auto").disabled = !autoAvailable;
-      if (!autoAvailable && $("mode").value === "auto") {
-        $("mode").value = "deterministic";
+      const hasKey = $("api-key") && $("api-key").value.trim().length > 0;
+      if ($("key-hint")) {
+        $("key-hint").textContent = hasKey
+          ? "Key wird nur für diesen Request gesendet — nie gespeichert."
+          : "Ohne Key: nur deterministischer Modus möglich.";
+        $("key-hint").className = hasKey ? "hint ok" : "hint";
       }
-      updateModeDesc();
+      updateModeAvailability();
+      if (hasKey && currentMode === "deterministic") updateMode("auto");
     }
 
-    function updateModeDesc() {
-      const descs = {
-        deterministic: "Regelbasierte HTML-Analyse — kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen strukturiert aus dem Markup.",
-        auto: "Deterministisch + KI-Vertiefung — erkennt implizite Zusammenhänge und ergänzt Felder, die im HTML nicht explizit strukturiert sind. Verbraucht API-Token.",
-      };
-      $("mode-desc").textContent = descs[$("mode").value] || "";
+    // ── Mode logic ──
+    function llmAvailable() {
+      if (loggedInUser && serverHasLlm) return true;
+      const keyEl = $("api-key");
+      return !!(keyEl && keyEl.value.trim());
     }
 
-    $("mode").addEventListener("change", updateModeDesc);
+    function updateModeAvailability() {
+      const available = llmAvailable();
+      const autoCard = $("mode-card-auto");
+      const badge = $("auto-badge");
+      if (available) {
+        autoCard.classList.remove("disabled");
+        badge.className = "mode-badge";
+        badge.textContent = "LLM-Tiefe";
+      } else {
+        autoCard.classList.add("disabled");
+        badge.className = "mode-badge needs-llm";
+        badge.textContent = "Login nötig";
+      }
+      // If auto selected but no longer available, switch to deterministic
+      if (currentMode === "auto" && !available) updateMode("deterministic");
+    }
+
+    function updateMode(mode) {
+      if (mode === "auto" && !llmAvailable()) mode = "deterministic";
+      currentMode = mode;
+
+      $("mode-card-auto").classList.toggle("active", mode === "auto");
+      $("mode-card-deterministic").classList.toggle("active", mode === "deterministic");
+      updateModeAvailability();
+      updateExtraWrap();
+    }
+
+    $("mode-card-auto").addEventListener("click", () => {
+      if (!$("mode-card-auto").classList.contains("disabled")) updateMode("auto");
+    });
+    $("mode-card-deterministic").addEventListener("click", () => updateMode("deterministic"));
+
+    // ── Zusatztext reveal (after first run, only in auto mode) ──
+    function updateExtraWrap() {
+      const show = hasRunOnce && currentMode === "auto";
+      $("extra-wrap").style.display = show ? "block" : "none";
+    }
+
+    $("extra-toggle").addEventListener("click", () => {
+      const body = $("extra-body");
+      const arrow = $("extra-arrow");
+      const isOpen = body.classList.contains("open");
+      body.classList.toggle("open", !isOpen);
+      arrow.classList.toggle("open", !isOpen);
+      $("extra-toggle").querySelector(".extra-reveal-title").textContent =
+        isOpen ? "▸ Zusatztext ergänzen" : "▾ Zusatztext";
+    });
+
+    // ── URL / HTML tabs ──
+    $("tab-url-btn").addEventListener("click", () => {
+      $("tab-url-btn").classList.add("active");
+      $("tab-html-btn").classList.remove("active");
+      $("input-url-wrap").style.display = "block";
+      $("input-html-wrap").style.display = "none";
+    });
+    $("tab-html-btn").addEventListener("click", () => {
+      $("tab-html-btn").classList.add("active");
+      $("tab-url-btn").classList.remove("active");
+      $("input-html-wrap").style.display = "block";
+      $("input-url-wrap").style.display = "none";
+    });
+
+    // ── Registry panel ──
+    function updateRegistryPanel() {
+      const panel = $("registry-panel");
+      if (!loggedInUser) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      loadRegistryStats();
+    }
+
+    async function loadRegistryStats() {
+      const panel = $("registry-panel");
+      const content = $("registry-content");
+      if (!panel || !content || !loggedInUser) return;
+      panel.style.display = "block";
+      try {
+        const res = await fetch("/api/registry/stats", { headers: authHeaders() });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        renderRegistryContent(data);
+      } catch {
+        content.innerHTML = `<span class="reg-loading">Konnte Registry nicht laden.</span>`;
+      }
+    }
+
+    function renderRegistryContent(data) {
+      const content = $("registry-content");
+      if (!content) return;
+
+      const recent = (data.recent || []).slice(0, 12);
+      const listItems = recent.map(e => {
+        const age = relativeTime(e.lastSeen);
+        const name = e.name ? escHtml(e.name) : `<em style="color:var(--muted)">${escHtml(e.id.split("#").pop() || e.id)}</em>`;
+        return `<li><span class="reg-type">${escHtml(e.type)}</span><span class="reg-name">${name}</span><span class="reg-time">${age}</span></li>`;
+      }).join("");
+
+      content.innerHTML =
+        `<div class="reg-stats">` +
+        `<div class="reg-stat"><div class="reg-stat-val">${data.totalEntities}</div><div class="reg-stat-lbl">Entitäten</div></div>` +
+        `<div class="reg-stat"><div class="reg-stat-val">${data.runCount}</div><div class="reg-stat-lbl">Läufe (seit Start)</div></div>` +
+        `</div>` +
+        `<div class="reg-global-note">⚠ Server-weit geteilt — alle Nutzer teilen dasselbe Gedächtnis.</div>` +
+        (listItems
+          ? `<ul class="reg-list">${listItems}</ul>`
+          : `<div class="reg-loading">Noch keine Einträge.</div>`);
+    }
+
+    function relativeTime(iso) {
+      const diff = Date.now() - new Date(iso).getTime();
+      const m = Math.floor(diff / 60000);
+      if (m < 1)   return "gerade eben";
+      if (m < 60)  return `vor ${m} Min.`;
+      const h = Math.floor(m / 60);
+      if (h < 24)  return `vor ${h} Std.`;
+      const d = Math.floor(h / 24);
+      return `vor ${d} Tag${d !== 1 ? "en" : ""}`;
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
 
     // ── Login modal ──
     function openLoginModal() {
@@ -356,53 +573,46 @@
         loggedInUser = $("login-user").value;
         sessionStorage.setItem("sf_token", session);
         closeLoginModal();
-        renderAuthArea();
-        renderLlmBox();
-        updateModeOptions();
+        renderAll();
       } catch { $("login-err").textContent = "Verbindungsfehler"; }
       finally { $("login-btn").disabled = false; }
     });
-    $("login-pass").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-btn").click(); });
-    $("login-user").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-pass").focus(); });
+    $("login-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("login-btn").click(); });
+    $("login-user").addEventListener("keydown", e => { if (e.key === "Enter") $("login-pass").focus(); });
 
     async function doLogout() {
       await fetch("/api/logout", { method: "POST", headers: authHeaders() }).catch(() => {});
-      session = null;
-      loggedInUser = null;
+      session = null; loggedInUser = null;
       sessionStorage.removeItem("sf_token");
-      renderAuthArea();
-      renderLlmBox();
-      updateModeOptions();
+      renderAll();
     }
 
     // ── Generate ──
     $("run").addEventListener("click", async () => {
-      const apiKeyEl = $("api-key");
-      const providerEl = $("api-provider");
-      const ownKey = apiKeyEl ? apiKeyEl.value.trim() : "";
-      const ownProvider = providerEl ? providerEl.value : "";
+      const keyEl = $("api-key");
+      const provEl = $("api-provider");
+      const ownKey = keyEl ? keyEl.value.trim() : "";
+      const ownProv = provEl ? provEl.value : "";
 
-      // When logged in and no override is selected, send no apiKey → server uses its own key.
-      // When logged in and override provider is selected, use the entered key.
-      // When not logged in, send key if present.
-      let apiKey = undefined;
-      let provider = undefined;
+      let apiKey, provider;
       if (loggedInUser) {
-        if (ownProvider && ownKey) { apiKey = ownKey; provider = ownProvider; }
-      } else if (ownKey && ownProvider) {
-        apiKey = ownKey; provider = ownProvider;
+        // logged in: no override unless explicitly entered
+      } else if (ownKey && ownProv) {
+        apiKey = ownKey; provider = ownProv;
       }
 
+      const textEl = $("text");
       const body = {
         url:  $("url").value.trim()  || undefined,
-        text: $("text").value.trim() || undefined,
         html: $("html").value.trim() || undefined,
-        mode: $("mode").value,
+        text: textEl ? textEl.value.trim() || undefined : undefined,
+        mode: currentMode,
         ...(apiKey ? { apiKey, provider } : {}),
       };
+
       $("run").disabled = true;
       $("status").textContent = "Analysiere…";
-      $("info-panel").style.display = "none";
+      $("info-wrap").style.display = "none";
       $("detection").style.display = "none";
       $("validation").style.display = "none";
       $("output-header").style.display = "none";
@@ -416,11 +626,17 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Fehler");
+
+        hasRunOnce = true;
+        updateExtraWrap();
         render(data);
         $("status").textContent = "Fertig.";
+
+        // Refresh registry stats after run
+        if (loggedInUser) loadRegistryStats();
       } catch (e) {
         $("status").textContent = "Fehler: " + e.message;
-        $("info-panel").style.display = "block";
+        $("info-wrap").style.display = "block";
       } finally {
         $("run").disabled = false;
       }
@@ -434,21 +650,24 @@
       lastScriptTag = data.scriptTag || "";
 
       const rec = data.recommendation;
-      const plugins = data.detection.detectedPlugins.join(", ") || "keine";
+      const plugins = data.detection.detectedPlugins.filter(p => p !== "wordpress-generic").join(", ") || "keine";
       const modeLabel = data.usedMode === "llm" ? "✦ LLM" : "⚙ deterministisch";
       const modeClass = data.usedMode === "llm" ? "mode-llm" : "mode-det";
+      const graphLen = data.jsonld?.["@graph"]?.length ?? (data.jsonld?.["@type"] ? 1 : 0);
+
       $("detection").innerHTML =
-        `<span class="badge ${rec}">Empfehlung: ${rec}</span>` +
+        `<span class="badge ${rec}">→ ${rec}</span>` +
         `<span class="badge ${modeClass}">${modeLabel}</span>` +
-        `<div class="meta">Bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins}</div>`;
+        `<div class="meta">${graphLen} Entität${graphLen !== 1 ? "en" : ""} · bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins || "keine"}</div>`;
       $("detection").style.display = "block";
 
       const v = data.validation;
+      const scorePercent = Math.round((v.coverageScore || 0) * 100);
       const items = v.issues.map(i =>
-        `<li class="lvl-${i.level}">[${i.level}] ${i.subject ? i.subject + ": " : ""}${i.message}</li>`
+        `<li class="lvl-${i.level}">[${i.level}]${i.subject ? " " + escHtml(i.subject) + ":" : ""} ${escHtml(i.message)}</li>`
       ).join("");
       $("validation").innerHTML =
-        `<div class="cov">Coverage-Score: <b>${v.coverageScore}</b></div>` +
+        `<div class="cov">Coverage-Score: <b>${scorePercent}%</b></div>` +
         (items ? `<ul class="issues">${items}</ul>` : `<div class="meta">Keine Probleme gefunden.</div>`);
       $("validation").style.display = "block";
 
@@ -458,7 +677,7 @@
     }
 
     // ── Start ──
-    updateModeDesc();
+    updateMode("auto");
     init();
   </script>
 </body>

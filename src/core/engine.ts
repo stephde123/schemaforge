@@ -30,6 +30,8 @@ export class Engine {
     private llm: LlmProvider,
   ) {}
 
+  private runCount = 0;
+
   static async create(cfg: Config): Promise<Engine> {
     const brain = await SchemaBrain.load(cfg.schemaDumpPath);
     const registry = await JsonRegistry.open(cfg.registryPath);
@@ -37,10 +39,25 @@ export class Engine {
     return new Engine(cfg, brain, registry, llm);
   }
 
+  getRunCount(): number { return this.runCount; }
+
+  getRegistryStats() {
+    return this.registry.all()
+      .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
+      .map(e => ({
+        type: Array.isArray(e.type) ? e.type[0] : e.type,
+        name: e.name ?? null,
+        lastSeen: e.lastSeen,
+        firstSeen: e.firstSeen,
+        id: e.id,
+      }));
+  }
+
   async run(
     req: NormalizeRequest,
     opts: PipelineOptions = {},
   ): Promise<PipelineResult> {
+    this.runCount++;
     const mode = opts.mode || "auto";
 
     // 1) Normalize

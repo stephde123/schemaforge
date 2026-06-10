@@ -73,7 +73,12 @@ async function main() {
   app.use(express.static(join(__dirname, "public")));
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION });
+    res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION, runCount: engine.getRunCount() });
+  });
+
+  app.get("/api/registry/stats", requireSession, (_req, res) => {
+    const entries = engine.getRegistryStats();
+    res.json({ totalEntities: entries.length, runCount: engine.getRunCount(), recent: entries.slice(0, 20) });
   });
 
   // Returns the current user if the session token is valid.
