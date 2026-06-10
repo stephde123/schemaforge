@@ -26,3 +26,16 @@ export function makeProvider(cfg: Config): LlmProvider {
       return new NullProvider();
   }
 }
+
+/** Build a one-shot provider from a user-supplied API key (no server config needed). */
+export function makeProviderFromKey(
+  provider: "openai" | "anthropic",
+  apiKey: string,
+): LlmProvider {
+  switch (provider) {
+    case "anthropic":
+      return new AnthropicProvider(apiKey, "claude-sonnet-4-6");
+    case "openai":
+      return new OpenAIProvider(apiKey, "gpt-4o");
+  }
+}

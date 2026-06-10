@@ -58,9 +58,11 @@ export class Engine {
     let entities: Entity[] = deterministicExtract(normalized, detection, classification);
 
     // 5) LLM depth (unless deterministic-only)
-    if (mode === "auto" && this.cfg.llmProvider !== "none") {
+    // Use caller-supplied override first; fall back to server's configured provider.
+    const llm = opts.llmOverride ?? this.llm;
+    if (mode === "auto" && (opts.llmOverride != null || this.cfg.llmProvider !== "none")) {
       try {
-        const deep = await llmExtract(normalized, entities, this.brain, this.llm, classification);
+        const deep = await llmExtract(normalized, entities, this.brain, llm, classification);
         entities = [...entities, ...deep];
       } catch (err) {
         // Never fail the whole run because the LLM hiccuped.

@@ -100,6 +100,8 @@ export interface PipelineResult {
 export interface PipelineOptions {
   /** "auto" runs LLM deep extraction; "deterministic" skips it. */
   mode?: "auto" | "deterministic";
+  /** When set, this provider is used instead of the server's configured LLM. */
+  llmOverride?: import("./llm/provider.js").LlmProvider;
   /** Extra free-text the user pasted to enrich extraction. */
   extraText?: string;
   /** Manually supplied entities to seed/override the graph. */
