@@ -76,6 +76,11 @@ async function main() {
     res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION, runCount: engine.getRunCount() });
   });
 
+  app.delete("/api/registry", requireSession, async (_req, res) => {
+    await engine.clearRegistry();
+    res.json({ ok: true, message: "Registry cleared." });
+  });
+
   app.get("/api/registry/stats", requireSession, (req, res) => {
     const entries = engine.getRegistryStats();
     const q = typeof req.query.q === "string" ? req.query.q.toLowerCase() : null;

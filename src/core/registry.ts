@@ -29,6 +29,7 @@ export interface Registry {
   upsert(entry: Omit<RegistryEntry, "firstSeen" | "lastSeen">): RegistryEntry;
   all(): RegistryEntry[];
   flush(): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export class JsonRegistry implements Registry {
@@ -85,6 +86,12 @@ export class JsonRegistry implements Registry {
   async flush(): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true });
     await writeFile(this.path, JSON.stringify(this.all(), null, 2), "utf8");
+  }
+
+  async clear(): Promise<void> {
+    this.byKey.clear();
+    this.bySameAs.clear();
+    await this.flush();
   }
 }
 

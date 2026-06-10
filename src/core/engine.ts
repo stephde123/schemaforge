@@ -41,6 +41,8 @@ export class Engine {
 
   getRunCount(): number { return this.runCount; }
 
+  async clearRegistry(): Promise<void> { await this.registry.clear(); }
+
   getRegistryStats() {
     return this.registry.all()
       .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
