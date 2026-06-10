@@ -59,7 +59,9 @@ export class Engine {
     // Use caller-supplied LLM override first; fall back to server's configured provider.
     const llm = opts.llmOverride ?? this.llm;
     const llmAvailable = mode === "auto" && (opts.llmOverride != null || this.cfg.llmProvider !== "none");
-    let llmUsed = false;
+    let classifyLlmUsed = false;
+    let extractLlmUsed = false;
+    const llmErrors: string[] = [];
 
     // 3) Classify page type.
     // In auto mode with LLM available: use the LLM type-selector pre-call which
@@ -69,9 +71,12 @@ export class Engine {
     let classification = classifyPage(normalized);
     if (llmAvailable) {
       try {
-        classification = await llmClassifyPage(normalized, this.brain, llm);
-        llmUsed = true;
+        const c = await llmClassifyPage(normalized, this.brain, llm);
+        classification = c;
+        // llmClassifyPage falls back to heuristic on failure and marks it with "llm-type-selector"
+        classifyLlmUsed = c.signals.includes("llm-type-selector");
       } catch (err) {
+        llmErrors.push(`LLM classify: ${String(err)}`);
         console.warn("[engine] LLM classify failed, using heuristic:", err);
       }
     }
@@ -84,9 +89,10 @@ export class Engine {
       try {
         const deep = await llmExtract(normalized, entities, this.brain, llm, classification, opts.requestContext);
         entities = [...entities, ...deep];
-        llmUsed = true;
+        extractLlmUsed = true;
       } catch (err) {
-        // Never fail the whole run because the LLM hiccuped.
+        // Never fail the whole run because the LLM hiccuped — but surface the error.
+        llmErrors.push(`LLM extract: ${String(err)}`);
         console.error("[engine] LLM extraction failed:", err);
       }
     }
@@ -100,6 +106,12 @@ export class Engine {
     const graph = await reconcile(normalized, entities, this.registry);
     await this.registry.flush();
     const validation = validate(graph, this.brain);
+
+    // Surface LLM errors as warnings so callers can diagnose silent failures.
+    for (const msg of llmErrors) {
+      validation.issues.unshift({ level: "warning", message: msg });
+    }
+
     const jsonld = toJsonLd(graph);
 
     return {
@@ -109,7 +121,7 @@ export class Engine {
       jsonld,
       validation,
       recommendation: recommend(detection),
-      usedMode: llmUsed ? "llm" : "deterministic",
+      usedMode: (classifyLlmUsed || extractLlmUsed) ? "llm" : "deterministic",
     };
   }
 }
