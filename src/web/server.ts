@@ -13,6 +13,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, { user: string; expires: number }>();
 
+const ContextSchema = z.object({
+  /** Which SEO plugin is active on the WordPress site (e.g. "yoast", "rankmath"). */
+  detectedPlugin: z.string().optional(),
+  /** Caller's configured merge strategy hint. */
+  strategy: z.enum(["auto", "merge", "replace", "add"]).optional(),
+  /** BCP-47 language override (e.g. "de"). Overrides HTML lang detection. */
+  lang: z.string().optional(),
+}).optional();
+
 const RunSchema = z.object({
   url: z.string().url().optional(),
   html: z.string().optional(),
@@ -21,6 +30,8 @@ const RunSchema = z.object({
   // User-supplied key for anonymous LLM access — never stored, one request only.
   apiKey: z.string().optional(),
   provider: z.enum(["openai", "anthropic"]).optional(),
+  /** Optional context hints from the caller (e.g. WordPress companion plugin). */
+  context: ContextSchema,
 });
 
 function getToken(req: express.Request): string | null {
@@ -92,7 +103,7 @@ async function main() {
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
-    const { url, html, text, mode, apiKey, provider: userProvider } = parsed.data;
+    const { url, html, text, mode, apiKey, provider: userProvider, context } = parsed.data;
     if (!url && !html && !text) {
       return res.status(400).json({ error: "Provide url, html, or text." });
     }
@@ -112,7 +123,7 @@ async function main() {
     try {
       const result = await engine.run(
         { url, html, extraText: text },
-        { mode: effectiveMode, llmOverride },
+        { mode: effectiveMode, llmOverride, requestContext: context ?? undefined },
       );
       res.json({
         recommendation: result.recommendation,
@@ -121,6 +132,8 @@ async function main() {
           detectedPlugins: result.detection.detectedPlugins,
         },
         validation: result.validation,
+        // Top-level alias for convenience (same value as validation.coverageScore)
+        coverageScore: result.validation.coverageScore,
         jsonld: result.jsonld,
         scriptTag: toScriptTag(result.jsonld),
       });

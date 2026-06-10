@@ -97,6 +97,16 @@ export interface PipelineResult {
   recommendation: "add" | "merge" | "replace" | "none";
 }
 
+/** Caller-supplied context hints (e.g. from the WordPress companion plugin). */
+export interface RequestContext {
+  /** Which SEO plugin is active on the site (e.g. "yoast", "rankmath"). */
+  detectedPlugin?: string;
+  /** The caller's configured merge strategy. Informational; does not override recommendation. */
+  strategy?: "auto" | "merge" | "replace" | "add";
+  /** BCP-47 language hint (e.g. "de"). Overrides HTML lang detection in normalize. */
+  lang?: string;
+}
+
 export interface PipelineOptions {
   /** "auto" runs LLM deep extraction; "deterministic" skips it. */
   mode?: "auto" | "deterministic";
@@ -106,4 +116,6 @@ export interface PipelineOptions {
   extraText?: string;
   /** Manually supplied entities to seed/override the graph. */
   manualEntities?: Entity[];
+  /** Optional context hints from the caller (e.g. WordPress companion plugin). */
+  requestContext?: RequestContext;
 }

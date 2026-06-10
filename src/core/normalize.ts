@@ -6,6 +6,8 @@ export interface NormalizeRequest {
   url?: string;
   html?: string;
   extraText?: string;
+  /** Caller-supplied language override (BCP-47). Takes precedence over HTML lang detection. */
+  langOverride?: string;
 }
 
 /**
@@ -39,6 +41,7 @@ export async function normalize(
     sourceUrl;
 
   const lang =
+    req.langOverride?.split("-")[0]?.trim() ||
     $("html").attr("lang")?.split("-")[0]?.trim() ||
     $('meta[property="og:locale"]').attr("content")?.split("_")[0]?.trim();
 

@@ -1,4 +1,4 @@
-import type { Entity, NormalizedInput } from "../types.js";
+import type { Entity, NormalizedInput, RequestContext } from "../types.js";
 import type { SchemaBrain } from "../schema-brain.js";
 import type { LlmProvider } from "../llm/provider.js";
 import type { PageClassification } from "../classify.js";
@@ -9,11 +9,12 @@ export async function llmExtract(
   brain: SchemaBrain,
   llm: LlmProvider,
   classification?: PageClassification,
+  requestContext?: RequestContext,
 ): Promise<Entity[]> {
   const candidateTypes = pickCandidateTypes(base, brain, classification);
   const propertyHints = buildPropertyHints(candidateTypes, brain);
 
-  const raw = await llm.complete(SYSTEM_PROMPT, buildUserPrompt(input, base, candidateTypes, propertyHints, classification));
+  const raw = await llm.complete(SYSTEM_PROMPT, buildUserPrompt(input, base, candidateTypes, propertyHints, classification, requestContext));
   const parsed = safeParse(raw);
   if (!parsed) return [];
 
@@ -131,6 +132,7 @@ function buildUserPrompt(
   candidateTypes: string[],
   propertyHints: Record<string, string[]>,
   classification?: PageClassification,
+  requestContext?: RequestContext,
 ): string {
   return JSON.stringify(
     {
@@ -145,6 +147,13 @@ function buildUserPrompt(
             primaryHint: classification.primaryHint,
             additionalHints: classification.additionalHints,
             signals: classification.signals,
+          }
+        : undefined,
+      // Hints from the caller (e.g. WordPress plugin knows the active SEO plugin)
+      callerContext: requestContext
+        ? {
+            detectedPlugin: requestContext.detectedPlugin,
+            strategy: requestContext.strategy,
           }
         : undefined,
       baseGraph: base.map((e) => ({

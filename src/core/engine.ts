@@ -45,7 +45,11 @@ export class Engine {
 
     // 1) Normalize
     const normalized = await normalize(
-      { ...req, extraText: opts.extraText ?? req.extraText },
+      {
+        ...req,
+        extraText: opts.extraText ?? req.extraText,
+        langOverride: opts.requestContext?.lang,
+      },
       this.cfg,
     );
 
@@ -76,7 +80,7 @@ export class Engine {
     // 5) LLM depth extraction (unless deterministic-only)
     if (llmAvailable) {
       try {
-        const deep = await llmExtract(normalized, entities, this.brain, llm, classification);
+        const deep = await llmExtract(normalized, entities, this.brain, llm, classification, opts.requestContext);
         entities = [...entities, ...deep];
       } catch (err) {
         // Never fail the whole run because the LLM hiccuped.
