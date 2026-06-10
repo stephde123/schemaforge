@@ -12,7 +12,7 @@ export async function llmExtract(
   requestContext?: RequestContext,
 ): Promise<Entity[]> {
   const candidateTypes = pickCandidateTypes(base, brain, classification);
-  const propertyHints = buildPropertyHints(candidateTypes, brain);
+  const propertyHints = buildPropertyHints(candidateTypes, brain, classification);
 
   const raw = await llm.complete(SYSTEM_PROMPT, buildUserPrompt(input, base, candidateTypes, propertyHints, classification, requestContext));
   const parsed = safeParse(raw);
@@ -319,11 +319,12 @@ function pickCandidateTypes(
     for (const h of classification.additionalHints) seeds.add(h);
   }
 
-  // Expand each seed to direct subtypes from the schema brain
-  const expanded = new Set<string>(seeds);
-  if (brain.loaded) {
-    for (const seed of seeds) {
-      for (const sub of brain.subTypesOf(seed).slice(0, 15)) expanded.add(sub);
+  // Expand ONLY the classification hints to their direct subtypes — not all
+  // BASE_SEEDS, which generates ~2000 types and blows the token budget.
+  if (brain.loaded && classification) {
+    const hintsToExpand = [classification.primaryHint, ...classification.additionalHints];
+    for (const hint of hintsToExpand) {
+      for (const sub of brain.subTypesOf(hint).slice(0, 10)) seeds.add(sub);
     }
   }
 
@@ -334,17 +335,35 @@ function pickCandidateTypes(
     prioritized.push(classification.primaryHint);
     prioritized.push(...classification.additionalHints);
   }
-  const rest = [...expanded].filter((t) => !prioritized.includes(t));
+  const rest = [...seeds].filter((t) => !prioritized.includes(t));
   return [...new Set([...prioritized, ...rest])];
 }
+
+// Always-useful structural types that get property hints regardless of classification
+const ALWAYS_HINT_TYPES = new Set([
+  "WebPage", "WebSite", "Organization", "Person", "PostalAddress",
+  "ContactPoint", "OpeningHoursSpecification", "AggregateRating",
+  "ImageObject", "BreadcrumbList", "ListItem", "Offer", "ItemList",
+]);
 
 function buildPropertyHints(
   types: string[],
   brain: SchemaBrain,
+  classification?: PageClassification,
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   if (!brain.loaded) return out;
+
+  // Only emit hints for classification-driven types + a small structural set.
+  // GPT-4o already knows all schema.org properties; hints exist only to
+  // constrain property names — so covering the 10-20 most likely types is enough.
+  const priority = new Set<string>([
+    ...(classification ? [classification.primaryHint, ...classification.additionalHints] : []),
+    ...ALWAYS_HINT_TYPES,
+  ]);
+
   for (const t of types) {
+    if (!priority.has(t)) continue;
     const props = brain.propertiesFor(t);
     if (props.length) out[t] = props.slice(0, 80);
   }
