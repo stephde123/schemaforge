@@ -1,0 +1,14 @@
+services:
+  schemaforge:
+    image: ghcr.io/stephde123/schemaforge:latest
+    container_name: schemaforge
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8420:8420"
+    volumes:
+      # Persist entity registry + schema dump across restarts and image upgrades.
+      - schemaforge_data:/app/data
+
+volumes:
+  schemaforge_data:

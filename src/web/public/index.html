@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SchemaForge</title>
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #171a21; --border: #262b36; --fg: #e6e9ef;
+      --muted: #8b93a3; --accent: #6ee7b7; --err: #f87171; --warn: #fbbf24;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); }
+    header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+    header .tag { color: var(--muted); font-size: 13px; }
+    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 59px); }
+    .left { padding: 20px; border-right: 1px solid var(--border); overflow: auto; }
+    .right { padding: 20px; overflow: auto; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+    input, textarea, select {
+      width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--fg);
+      border-radius: 8px; padding: 10px 12px; font-family: var(--sans); font-size: 14px;
+    }
+    textarea { resize: vertical; font-family: var(--mono); font-size: 12px; }
+    button {
+      margin-top: 16px; width: 100%; background: var(--accent); color: #06281d; border: 0;
+      border-radius: 8px; padding: 12px; font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: progress; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); margin-right: 6px; }
+    .badge.add { color: var(--accent); border-color: var(--accent); }
+    .badge.replace { color: var(--warn); border-color: var(--warn); }
+    .badge.merge { color: #93c5fd; border-color: #93c5fd; }
+    pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
+    .issues { list-style: none; padding: 0; margin: 10px 0; }
+    .issues li { font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+    .lvl-error { color: var(--err); } .lvl-warning { color: var(--warn); } .lvl-info { color: var(--muted); }
+    .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .cov { font-size: 13px; }
+    .copy { margin-top: 0; width: auto; padding: 6px 12px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SchemaForge</h1>
+    <span class="tag">tiefes schema.org / JSON-LD Markup</span>
+  </header>
+  <main>
+    <section class="left">
+      <label for="url">URL</label>
+      <input id="url" placeholder="https://example.com/seite" />
+
+      <label for="text">Zusatztext (optional)</label>
+      <textarea id="text" rows="4" placeholder="Kontext, der nicht auf der Seite steht…"></textarea>
+
+      <label for="html">…oder HTML direkt einfügen</label>
+      <textarea id="html" rows="6" placeholder="<html>…</html>"></textarea>
+
+      <label for="mode">Modus</label>
+      <select id="mode">
+        <option value="auto">Auto (deterministisch + LLM-Tiefe)</option>
+        <option value="deterministic">Nur deterministisch</option>
+      </select>
+
+      <button id="run">Markup erzeugen</button>
+    </section>
+
+    <section class="right">
+      <div id="status" class="meta">Bereit. Gib eine URL ein oder füge HTML ein.</div>
+
+      <div id="detection"></div>
+
+      <div id="validation"></div>
+
+      <div class="row">
+        <label style="margin:18px 0 6px;">JSON-LD</label>
+        <button class="copy" id="copy">kopieren (Script-Tag)</button>
+      </div>
+      <pre id="output">—</pre>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let lastScriptTag = "";
+
+    $("run").addEventListener("click", async () => {
+      const body = {
+        url: $("url").value.trim() || undefined,
+        text: $("text").value.trim() || undefined,
+        html: $("html").value.trim() || undefined,
+        mode: $("mode").value,
+      };
+      $("run").disabled = true;
+      $("status").textContent = "Analysiere…";
+      $("detection").innerHTML = "";
+      $("validation").innerHTML = "";
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Fehler");
+        render(data);
+        $("status").textContent = "Fertig.";
+      } catch (e) {
+        $("status").textContent = "Fehler: " + e.message;
+      } finally {
+        $("run").disabled = false;
+      }
+    });
+
+    $("copy").addEventListener("click", () => {
+      if (lastScriptTag) navigator.clipboard.writeText(lastScriptTag);
+    });
+
+    function render(data) {
+      lastScriptTag = data.scriptTag || "";
+      const rec = data.recommendation;
+      const plugins = data.detection.detectedPlugins.join(", ") || "keine";
+      $("detection").innerHTML =
+        `<span class="badge ${rec}">Empfehlung: ${rec}</span>` +
+        `<div class="meta">Bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins}</div>`;
+
+      const v = data.validation;
+      const items = v.issues.map(i =>
+        `<li class="lvl-${i.level}">[${i.level}] ${i.subject ? i.subject + ": " : ""}${i.message}</li>`
+      ).join("");
+      $("validation").innerHTML =
+        `<div class="cov">Coverage-Score: <b>${v.coverageScore}</b></div>` +
+        (items ? `<ul class="issues">${items}</ul>` : `<div class="meta">Keine Probleme gefunden.</div>`);
+
+      $("output").textContent = JSON.stringify(data.jsonld, null, 2);
+    }
+  </script>
+</body>
+</html>

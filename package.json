@@ -1,0 +1,30 @@
+{
+  "name": "schemaforge",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.2",
+  "type": "module",
+  "description": "Deep schema.org / JSON-LD markup generator with entity graph + memory",
+  "scripts": {
+    "dev": "tsx watch src/web/server.ts",
+    "web": "tsx src/web/server.ts",
+    "cli": "tsx src/cli/index.ts",
+    "fetch:schema": "tsx scripts/fetch-schema.ts",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/web/server.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "openai": "^4.77.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
