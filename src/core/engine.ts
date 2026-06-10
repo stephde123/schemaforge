@@ -8,6 +8,7 @@ import type {
 import { normalize, type NormalizeRequest } from "./normalize.js";
 import { detect } from "./detect.js";
 import { classifyPage } from "./classify.js";
+import { llmClassifyPage } from "./classify-llm.js";
 import { deterministicExtract } from "./extract/deterministic.js";
 import { llmExtract } from "./extract/llm.js";
 import { reconcile } from "./reconcile.js";
@@ -51,16 +52,29 @@ export class Engine {
     // 2) Detect existing markup + plugins
     const detection: DetectionResult = detect(normalized.html);
 
-    // 3) Classify page type from URL / content signals
-    const classification = classifyPage(normalized);
+    // Use caller-supplied LLM override first; fall back to server's configured provider.
+    const llm = opts.llmOverride ?? this.llm;
+    const llmAvailable = mode === "auto" && (opts.llmOverride != null || this.cfg.llmProvider !== "none");
+
+    // 3) Classify page type.
+    // In auto mode with LLM available: use the LLM type-selector pre-call which
+    // sees all 932 schema.org types and picks the best fit (Approach B).
+    // The type list lives in the system prompt so providers cache it across requests.
+    // In deterministic mode: fall back to the fast heuristic classifier.
+    let classification = classifyPage(normalized);
+    if (llmAvailable) {
+      try {
+        classification = await llmClassifyPage(normalized, this.brain, llm);
+      } catch (err) {
+        console.warn("[engine] LLM classify failed, using heuristic:", err);
+      }
+    }
 
     // 4) Deterministic extraction (uses classification hints)
     let entities: Entity[] = deterministicExtract(normalized, detection, classification);
 
-    // 5) LLM depth (unless deterministic-only)
-    // Use caller-supplied override first; fall back to server's configured provider.
-    const llm = opts.llmOverride ?? this.llm;
-    if (mode === "auto" && (opts.llmOverride != null || this.cfg.llmProvider !== "none")) {
+    // 5) LLM depth extraction (unless deterministic-only)
+    if (llmAvailable) {
       try {
         const deep = await llmExtract(normalized, entities, this.brain, llm, classification);
         entities = [...entities, ...deep];

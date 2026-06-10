@@ -79,9 +79,30 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - Emit a separate ReligiousOrganization for the managing parish or diocese if named on the page.
 - Always emit a WebSite entity when the site name / url is identifiable.
 
-### Local Business pages
-- Emit the most specific LocalBusiness subtype (Restaurant, Hotel, MedicalClinic, etc.).
-- Populate: name, address (PostalAddress), telephone, openingHours, geo (GeoCoordinates if lat/lng visible), priceRange, servesCuisine (for restaurants), hasMap.
+### Restaurant / Food Establishment pages
+- Emit the most specific type: ItalianRestaurant, PizzaRestaurant, Bakery, BarOrPub, CafeOrCoffeeShop, FastFoodRestaurant — or FoodEstablishment if uncertain.
+- Populate: name, description, url, image, address (PostalAddress), telephone, servesCuisine, menu (url or Menu entity), priceRange, openingHours, openingHoursSpecification, hasMap, acceptsReservations, aggregateRating.
+- Include geo (GeoCoordinates) if lat/lng found.
+- Emit a Menu entity with hasMenuSection pointing to MenuSection entities if menu sections are visible.
+
+### Hotel / Lodging pages
+- Emit the most specific type: Hotel, BedAndBreakfast, Hostel, Motel, Resort, VacationRental — or LodgingBusiness if uncertain.
+- Populate: name, description, url, image, address (PostalAddress), telephone, checkInTime, checkOutTime, numberOfRooms, amenityFeature (LocationFeatureSpecification[]), starRating (Rating), priceRange, geo (GeoCoordinates), aggregateRating.
+- Emit Accommodation entities for individual room types if described.
+
+### Medical / Healthcare pages
+- Emit the most specific type: Physician, Dentist, Pharmacy, Hospital, MedicalClinic, DiagnosticLab — or MedicalOrganization.
+- Populate: name, description, url, image, address (PostalAddress), telephone, medicalSpecialty, openingHours, hasMap.
+- Emit a Person entity for named doctors/practitioners.
+
+### Real Estate pages
+- Emit RealEstateListing for individual property listings.
+- Populate: name, url, description, image, numberOfRooms, numberOfBathroomsTotal, floorSize (QuantitativeValue), geo (GeoCoordinates), address (PostalAddress), offers (Offer with price and priceCurrency).
+- Emit RealEstateAgent for the agency/broker.
+
+### Local Business pages (general)
+- Emit the most specific LocalBusiness subtype available.
+- Populate: name, address (PostalAddress), telephone, openingHours, geo (GeoCoordinates if lat/lng visible), priceRange, hasMap.
 
 ### Event pages
 - Emit Event (or OnlineEvent / EducationEvent / etc.).
@@ -148,38 +169,109 @@ function buildUserPrompt(
 const BASE_SEEDS = [
   // Web infrastructure
   "WebPage", "WebSite", "AboutPage", "ContactPage", "FAQPage", "CollectionPage",
-  "ItemPage", "ProfilePage", "SearchResultsPage",
+  "ItemPage", "ProfilePage", "SearchResultsPage", "CheckoutPage",
+
   // Software & digital products
-  "SoftwareApplication", "WebApplication", "MobileApplication",
+  "SoftwareApplication", "WebApplication", "MobileApplication", "VideoGame",
+
   // Organizations & people
-  "Organization", "Corporation", "LocalBusiness", "Person", "Brand",
+  "Organization", "Corporation", "NGO", "GovernmentOrganization",
+  "LocalBusiness", "Person", "Brand",
+
+  // Local business subtypes — food & drink
+  "FoodEstablishment", "Restaurant", "Bakery", "BarOrPub", "Brewery",
+  "CafeOrCoffeeShop", "FastFoodRestaurant", "IceCreamShop",
+  "PizzaRestaurant", "Winery",
+
+  // Local business subtypes — lodging
+  "LodgingBusiness", "Hotel", "Hostel", "BedAndBreakfast", "Motel", "Resort",
+  "VacationRental",
+
+  // Local business subtypes — healthcare & medical
+  "MedicalOrganization", "MedicalClinic", "Physician", "Dentist",
+  "DiagnosticLab", "Hospital", "Pharmacy",
+
+  // Local business subtypes — professional services
+  "AccountingService", "AutoDealer", "AutoRepair", "ChildCare",
+  "FinancialService", "InsuranceAgency", "LegalService", "RealEstateAgent",
+  "TravelAgency",
+
+  // Local business subtypes — retail
+  "Store", "BookStore", "ClothingStore", "ComputerStore",
+  "ElectronicsStore", "FlowerShop", "FurnitureStore", "GroceryStore",
+  "HardwareStore", "HomeGoodsStore", "JewelryStore",
+  "LiquorStore", "PetStore", "ShoeStore", "SportingGoodsStore",
+  "ToyStore",
+
+  // Local business subtypes — personal care & fitness
+  "BeautySalon", "DaySpa", "HairSalon", "NailSalon",
+  "HealthClub", "GymOrFitnessCentre",
+
+  // Local business subtypes — entertainment & arts
+  "AmusementPark", "ArtGallery", "Casino", "ComedyClub", "MovieTheater",
+  "MusicVenue", "NightClub", "Zoo",
+
+  // Civic, religious & cultural places
+  "CivicStructure", "PlaceOfWorship", "Church", "CatholicChurch",
+  "BuddhistTemple", "HinduTemple", "Mosque", "Synagogue",
+  "Monastery", "LandmarksOrHistoricalBuildings", "TouristAttraction",
+  "Museum", "Park", "Cemetery", "Library", "PublicToilet",
+  "Stadium", "SportsClub",
+
+  // Organizations — religious
+  "ReligiousOrganization",
+
+  // Organizations — education
+  "EducationalOrganization", "School", "HighSchool", "MiddleSchool",
+  "ElementarySchool", "CollegeOrUniversity", "PreschoolEducation",
+
   // Products & commerce
-  "Product", "ProductGroup", "Offer", "AggregateOffer",
-  // Content
+  "Product", "ProductGroup", "IndividualProduct",
+  "Offer", "AggregateOffer", "PriceSpecification",
+  "RealEstateListing",
+
+  // Content types
   "Article", "BlogPosting", "NewsArticle", "TechArticle",
-  "HowTo", "HowToStep", "Recipe",
+  "AnalysisNewsArticle", "OpinionNewsArticle", "ReviewNewsArticle",
+  "HowTo", "HowToStep", "HowToSection", "Recipe",
+
   // Lists & navigation
-  "ItemList", "BreadcrumbList",
+  "ItemList", "BreadcrumbList", "ListItem",
+
   // Events
-  "Event", "OnlineEvent", "EducationEvent",
-  // Local / places
-  "Place", "PostalAddress", "GeoCoordinates",
-  "LocalBusiness", "CivicStructure",
-  "Church", "CatholicChurch", "PlaceOfWorship",
-  "TouristAttraction", "LandmarksOrHistoricalBuildings",
-  "ReligiousOrganization", "Museum", "Cemetery",
-  // Reviews
-  "Review", "AggregateRating",
+  "Event", "OnlineEvent", "BusinessEvent", "ChildrensEvent",
+  "ComedyEvent", "CourseInstance", "DanceEvent", "DeliveryEvent",
+  "EducationEvent", "ExhibitionEvent", "Festival", "FoodEvent",
+  "LiteraryEvent", "MusicEvent", "PublicationEvent", "SaleEvent",
+  "SocialEvent", "SportsEvent", "VisualArtsEvent",
+
+  // Courses & credentials
+  "Course", "EducationalOccupationalCredential",
+
+  // Q&A
+  "FAQPage", "QAPage", "Question", "Answer",
+
+  // Reviews & ratings
+  "Review", "AggregateRating", "Rating",
+
+  // Jobs
+  "JobPosting", "EmploymentAgency",
+
   // Media
   "VideoObject", "ImageObject", "AudioObject",
-  // Education
-  "Course", "EducationEvent",
-  // Q&A
-  "Question", "Answer",
-  // Jobs
-  "JobPosting",
+  "PodcastSeries", "PodcastEpisode",
+
   // Creative works
-  "Book", "Movie", "PodcastSeries", "PodcastEpisode",
+  "Book", "Movie", "MusicRecording", "MusicAlbum", "MusicGroup",
+  "TVSeries", "TVEpisode",
+
+  // Addresses & geo
+  "Place", "PostalAddress", "GeoCoordinates", "GeoShape",
+
+  // Other structured data
+  "Person", "ContactPoint", "OpeningHoursSpecification",
+  "NutritionInformation", "MonetaryAmount",
+  "SpeakableSpecification",
 ];
 
 function pickCandidateTypes(
