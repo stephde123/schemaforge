@@ -45,11 +45,14 @@ export class Engine {
     return this.registry.all()
       .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
       .map(e => ({
+        key: e.key,
         type: Array.isArray(e.type) ? e.type[0] : e.type,
         name: e.name ?? null,
+        sameAs: e.sameAs ?? [],
         lastSeen: e.lastSeen,
         firstSeen: e.firstSeen,
         id: e.id,
+        props: e.props,
       }));
   }
 

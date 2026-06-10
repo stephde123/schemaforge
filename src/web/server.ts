@@ -76,9 +76,13 @@ async function main() {
     res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION, runCount: engine.getRunCount() });
   });
 
-  app.get("/api/registry/stats", requireSession, (_req, res) => {
+  app.get("/api/registry/stats", requireSession, (req, res) => {
     const entries = engine.getRegistryStats();
-    res.json({ totalEntities: entries.length, runCount: engine.getRunCount(), recent: entries.slice(0, 20) });
+    const q = typeof req.query.q === "string" ? req.query.q.toLowerCase() : null;
+    const filtered = q
+      ? entries.filter(e => (e.name ?? "").toLowerCase().includes(q) || e.type.toLowerCase().includes(q))
+      : entries;
+    res.json({ totalEntities: entries.length, runCount: engine.getRunCount(), recent: filtered.slice(0, 100) });
   });
 
   // Returns the current user if the session token is valid.
