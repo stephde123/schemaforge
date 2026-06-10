@@ -50,11 +50,9 @@ export class Engine {
         key: e.key,
         type: Array.isArray(e.type) ? e.type[0] : e.type,
         name: e.name ?? null,
-        sameAs: e.sameAs ?? [],
         lastSeen: e.lastSeen,
         firstSeen: e.firstSeen,
         id: e.id,
-        props: e.props,
       }));
   }
 

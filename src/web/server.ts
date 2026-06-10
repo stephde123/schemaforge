@@ -85,7 +85,7 @@ async function main() {
     const entries = engine.getRegistryStats();
     const q = typeof req.query.q === "string" ? req.query.q.toLowerCase() : null;
     const filtered = q
-      ? entries.filter(e => (e.name ?? "").toLowerCase().includes(q) || e.type.toLowerCase().includes(q))
+      ? entries.filter(e => (e.name ?? "").toLowerCase().includes(q) || (e.type ?? "").toLowerCase().includes(q))
       : entries;
     res.json({ totalEntities: entries.length, runCount: engine.getRunCount(), recent: filtered.slice(0, 100) });
   });

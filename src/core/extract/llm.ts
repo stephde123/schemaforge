@@ -29,7 +29,7 @@ export async function llmExtract(
   return nodes
     .filter((n: any) => n && n["@type"])
     .map((n: any): Entity => {
-      const { "@type": type, "@id": id, ...rest } = n;
+      const { "@type": type, "@id": id, sameAs: _sameAs, ...rest } = n;
       return {
         id: typeof id === "string" ? id : undefined,
         type,
@@ -46,7 +46,8 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - Choose the MOST SPECIFIC subtype available (e.g. Dentist over LocalBusiness, SoftwareApplication over WebPage for a software features page).
 - Emit MULTIPLE entities when the page contains multiple distinct concepts (e.g. a software features page may need: SoftwareApplication + ItemList of features + Organization + WebPage).
 - Only use properties listed in validPropertiesPerType. Do NOT invent property names.
-- Do NOT invent facts — only encode information supported by the page text.
+- STRICT EXTRACTION ONLY: every value you emit must be explicitly present in the page text. Do NOT generate, guess, or infer URLs, email addresses, phone numbers, social media handles, identifiers, or any other data that is not literally written on the page. If a piece of information is not on the page, omit the property entirely.
+- Do NOT emit sameAs under any circumstances — not for people, organizations, places, or any other entity type.
 - Link entities by "@id" reference rather than deep nesting when the target entity is already in the graph.
 - Output STRICT JSON: {"entities": [...]} where each element has "@type" plus properties. No markdown, no prose.
 
@@ -62,7 +63,7 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 ### Article / Blog pages
 - Emit Article (or BlogPosting / NewsArticle / TechArticle — whichever fits best).
 - Populate: headline, description, datePublished, dateModified, author (Person), publisher (Organization), image, url, wordCount if estimable.
-- If a Person authored it, emit a separate Person entity with name and optionally url/sameAs.
+- If a Person authored it, emit a separate Person entity with name and optionally url.
 
 ### FAQ pages
 - Emit FAQPage with mainEntity as an array of Question objects, each with name and acceptedAnswer (Answer with text).
@@ -75,7 +76,7 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 ### Place of Worship / Religious Site / Historical Landmark pages
 - Emit the MOST SPECIFIC type: CatholicChurch, BuddhistTemple, HinduTemple, Mosque, Synagogue, Church — or at minimum PlaceOfWorship.
 - For famous/listed buildings also add LandmarksOrHistoricalBuildings and TouristAttraction as parallel types.
-- Populate: name, alternateName, description, url, image, address (PostalAddress with streetAddress, postalCode, addressLocality, addressCountry), telephone, openingHoursSpecification or openingHours, geo (GeoCoordinates), hasMap, sameAs (Wikipedia, Wikidata, social profiles).
+- Populate: name, alternateName, description, url, image, address (PostalAddress with streetAddress, postalCode, addressLocality, addressCountry), telephone, openingHoursSpecification or openingHours, geo (GeoCoordinates), hasMap.
 - For historical buildings: include foundingDate or dateCreated if a construction era or century is mentioned (e.g. "12. Jahrhundert" → "12th century").
 - Emit a separate ReligiousOrganization for the managing parish or diocese if named on the page.
 - Always emit a WebSite entity when the site name / url is identifiable.
@@ -114,16 +115,16 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 
 ### Person / Personal profile pages (Über mich, About me, coach/trainer/speaker profiles)
 - Emit a Person as the primary entity.
-- Populate: name, jobTitle (most specific role, e.g. "Personal Trainer", "Life Coach"), description (biography summary), url (personal website), image, address (PostalAddress with at least addressLocality and addressCountry), sameAs (social profiles, Wikipedia, LinkedIn).
+- Populate: name, jobTitle (most specific role, e.g. "Personal Trainer", "Life Coach"), description (biography summary), url (personal website), image, address (PostalAddress with at least addressLocality and addressCountry).
 - Add knowsAbout for topics of expertise (array of strings).
 - Add hasCredential (EducationalOccupationalCredential) for each listed certification or degree, with credentialCategory and name.
 - Add memberOf (Organization) if affiliation is mentioned.
-- If the person appeared in media (TV, podcast, press), note it in description or sameAs.
+- If the person appeared in media (TV, podcast, press), note it in description.
 - Also emit a ProfilePage entity whose mainEntity references the Person by @id.
 - Emit WebSite when the site name/url is identifiable.
 
 ### Organization / About pages
-- Emit Organization (or more specific: Corporation, EducationalOrganization, etc.) with: name, url, logo, description, foundingDate, numberOfEmployees, address, sameAs (social profiles).
+- Emit Organization (or more specific: Corporation, EducationalOrganization, etc.) with: name, url, logo, description, foundingDate, numberOfEmployees, address.
 - Emit Person entities for founders/team members if named.
 
 ### Product / E-commerce pages
@@ -132,9 +133,8 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 ## General guidance
 - Always emit a WebSite entity when the website name/url is identifiable.
 - Always include BreadcrumbList if breadcrumbs are visible.
-- Include sameAs with social media profile URLs when they appear in links.
 - For any page: if there is a visible author/founder/team member → emit Person entities with at minimum name and jobTitle.
-- If the page is primarily ABOUT a named individual (biography, "Über mich", "About me", personal profile, portfolio, speaker page, coach page) — regardless of the page type classification — ALWAYS emit a Person entity as the primary entity. Do not wait for a specific classification hint. Use the page text to fill name, jobTitle, description, knowsAbout, hasCredential, sameAs, address.
+- If the page is primarily ABOUT a named individual (biography, "Über mich", "About me", personal profile, portfolio, speaker page, coach page) — regardless of the page type classification — ALWAYS emit a Person entity as the primary entity. Do not wait for a specific classification hint. Use the page text to fill name, jobTitle, description, knowsAbout, hasCredential, address.
 - Be thorough: a low coverageScore means important entities or properties were missed.`;
 
 function buildUserPrompt(
