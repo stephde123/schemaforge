@@ -1,5 +1,6 @@
 import express from "express";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { z } from "zod";
@@ -9,6 +10,9 @@ import { toScriptTag } from "../core/serialize.js";
 import { makeProviderFromKey } from "../core/llm/provider.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version: API_VERSION } = JSON.parse(
+  readFileSync(join(__dirname, "../../package.json"), "utf8"),
+) as { version: string };
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, { user: string; expires: number }>();
@@ -69,7 +73,7 @@ async function main() {
   app.use(express.static(join(__dirname, "public")));
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, provider: cfg.llmProvider });
+    res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION });
   });
 
   // Returns the current user if the session token is valid.

@@ -133,6 +133,7 @@
     <div class="header-left">
       <h1>SchemaForge</h1>
       <span class="tag">schema.org / JSON-LD Generator</span>
+      <span class="tag" id="api-version" style="opacity:.5"></span>
     </div>
     <div class="header-right" id="auth-area">
       <!-- filled by JS -->
@@ -226,6 +227,7 @@
       try {
         const h = await fetch("/api/health").then(r => r.json());
         serverHasLlm = h.provider && h.provider !== "none";
+        if (h.version) $("api-version").textContent = "v" + h.version;
       } catch {}
 
       // 2) Verify stored session
