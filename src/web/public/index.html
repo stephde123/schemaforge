@@ -8,178 +8,334 @@
     :root {
       --bg: #0f1115; --panel: #171a21; --border: #262b36; --fg: #e6e9ef;
       --muted: #8b93a3; --accent: #6ee7b7; --err: #f87171; --warn: #fbbf24;
+      --info: #93c5fd;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); }
 
-    /* ── Login screen ── */
-    #login-screen {
-      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: var(--bg); z-index: 100;
-    }
-    .login-card {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-      padding: 36px 40px; width: 360px;
-    }
-    .login-card h2 { margin: 0 0 6px; font-size: 22px; }
-    .login-card p { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
-    .login-err { color: var(--err); font-size: 13px; min-height: 18px; margin: 0 0 6px; }
-
-    /* ── Main app ── */
-    #app { display: none; }
+    /* ── Header ── */
     header {
-      padding: 16px 24px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
     }
-    .header-left { display: flex; align-items: baseline; gap: 12px; }
-    header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
-    header .tag { color: var(--muted); font-size: 13px; }
-    .logout-btn {
+    .header-left { display: flex; align-items: baseline; gap: 10px; }
+    header h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+    header .tag { color: var(--muted); font-size: 12px; }
+    .header-right { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .user-badge { color: var(--accent); }
+    .btn-sm {
       background: none; border: 1px solid var(--border); color: var(--muted);
-      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+      border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer;
       width: auto; margin-top: 0;
     }
-    .logout-btn:hover { color: var(--fg); border-color: var(--fg); }
+    .btn-sm:hover { color: var(--fg); border-color: var(--fg); }
+    .btn-sm.primary { background: var(--accent); color: #06281d; border-color: var(--accent); font-weight: 600; }
+    .btn-sm.primary:hover { opacity: .9; }
 
-    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 57px); }
-    .left { padding: 20px; border-right: 1px solid var(--border); overflow: auto; }
+    /* ── Login modal ── */
+    #login-modal { display: none; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50;
+    }
+    .modal-card {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      z-index: 51; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 32px; width: 320px;
+    }
+    .modal-card h3 { margin: 0 0 4px; font-size: 17px; }
+    .modal-card p  { color: var(--muted); font-size: 12px; margin: 0 0 20px; }
+    .login-err { color: var(--err); font-size: 12px; min-height: 16px; margin: 0 0 6px; }
+
+    /* ── Layout ── */
+    main {
+      display: grid; grid-template-columns: 390px 1fr; gap: 0;
+      height: calc(100vh - 53px);
+    }
+    .left  { padding: 18px 20px; border-right: 1px solid var(--border); overflow: auto; }
     .right { padding: 20px; overflow: auto; }
 
+    /* ── Form controls ── */
     label {
-      display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px;
+      display: block; font-size: 11px; color: var(--muted); margin: 14px 0 5px;
       text-transform: uppercase; letter-spacing: .5px;
     }
     input, textarea, select {
-      width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--fg);
-      border-radius: 8px; padding: 10px 12px; font-family: var(--sans); font-size: 14px;
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg);
+      border-radius: 7px; padding: 9px 11px; font-family: var(--sans); font-size: 14px;
     }
     input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
     textarea { resize: vertical; font-family: var(--mono); font-size: 12px; }
-    button {
+    .run-btn {
       margin-top: 16px; width: 100%; background: var(--accent); color: #06281d; border: 0;
-      border-radius: 8px; padding: 12px; font-weight: 600; font-size: 14px; cursor: pointer;
+      border-radius: 8px; padding: 11px; font-weight: 600; font-size: 14px; cursor: pointer;
     }
-    button:disabled { opacity: .5; cursor: progress; }
+    .run-btn:disabled { opacity: .45; cursor: progress; }
 
-    hr.divider { border: 0; border-top: 1px solid var(--border); margin: 16px 0 0; }
-
-    .key-box {
-      border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
-      margin-top: 14px;
+    /* ── Hint texts ── */
+    .hint {
+      font-size: 11px; color: var(--muted); margin: 4px 0 0; line-height: 1.5;
     }
-    .key-box label { margin-top: 0; }
-    .key-box label:not(:first-child) { margin-top: 10px; }
-    .key-hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
-    .key-hint.active { color: var(--accent); }
+    .hint.ok { color: var(--accent); }
 
-    .mode-note { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+    /* ── Section divider ── */
+    hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); margin-right: 6px; }
-    .badge.add    { color: var(--accent); border-color: var(--accent); }
-    .badge.replace { color: var(--warn); border-color: var(--warn); }
-    .badge.merge  { color: #93c5fd; border-color: #93c5fd; }
+    /* ── LLM access box ── */
+    .llm-box {
+      border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 2px;
+    }
+    .llm-box label { margin-top: 0; }
+    .llm-box label + label { margin-top: 10px; }
+    .llm-server-badge {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--accent); padding: 2px 0;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+    /* ── Mode description ── */
+    .mode-desc { font-size: 11px; color: var(--muted); margin: 5px 0 0; line-height: 1.5; }
+
+    /* ── Info panel (right side, initial state) ── */
+    .info-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.6;
+    }
+    .info-panel h4 { margin: 0 0 10px; font-size: 13px; color: var(--info); }
+    .info-panel ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    .info-panel ul li { margin-bottom: 5px; }
+    .info-panel ul li b { color: var(--fg); }
+
+    /* ── Result area ── */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-right: 6px; }
+    .badge.add     { color: var(--accent); border-color: var(--accent); }
+    .badge.replace { color: var(--warn);   border-color: var(--warn); }
+    .badge.merge   { color: var(--info);   border-color: var(--info); }
     pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
-    .issues { list-style: none; padding: 0; margin: 10px 0; }
+    .issues { list-style: none; padding: 0; margin: 8px 0; }
     .issues li { font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-    .lvl-error { color: var(--err); } .lvl-warning { color: var(--warn); } .lvl-info { color: var(--muted); }
+    .lvl-error   { color: var(--err); }
+    .lvl-warning { color: var(--warn); }
+    .lvl-info    { color: var(--muted); }
     .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
     .cov  { font-size: 13px; }
-    .copy { margin-top: 0; width: auto; padding: 6px 12px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); }
+    .copy { margin-top: 0; width: auto; padding: 5px 11px; font-size: 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+    .copy:hover { border-color: var(--fg); }
     .row  { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .status-line { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
 
-  <!-- ── Login ── -->
-  <div id="login-screen">
-    <div class="login-card">
-      <h2>SchemaForge</h2>
-      <p>Bitte anmelden, um fortzufahren.</p>
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-left">
+      <h1>SchemaForge</h1>
+      <span class="tag">schema.org / JSON-LD Generator</span>
+    </div>
+    <div class="header-right" id="auth-area">
+      <!-- filled by JS -->
+    </div>
+  </header>
+
+  <!-- ── Login modal ── -->
+  <div id="login-modal">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-card">
+      <h3>Anmelden</h3>
+      <p>Als Admin hat der Server-Key automatisch LLM-Zugang.</p>
       <div class="login-err" id="login-err"></div>
       <label for="login-user">Benutzername</label>
       <input id="login-user" type="text" autocomplete="username" />
       <label for="login-pass">Passwort</label>
       <input id="login-pass" type="password" autocomplete="current-password" />
-      <button id="login-btn">Anmelden</button>
+      <button class="run-btn" id="login-btn" style="margin-top:14px;">Anmelden</button>
+      <button class="btn-sm" id="login-cancel" style="margin-top:8px;width:100%;text-align:center;">Abbrechen</button>
     </div>
   </div>
 
-  <!-- ── App ── -->
-  <div id="app">
-    <header>
-      <div class="header-left">
-        <h1>SchemaForge</h1>
-        <span class="tag">tiefes schema.org / JSON-LD Markup</span>
+  <!-- ── Main layout ── -->
+  <main>
+    <section class="left">
+
+      <label for="url">URL</label>
+      <input id="url" type="url" placeholder="https://example.com/seite" />
+      <div class="hint">Wird bei jedem Lauf neu abgerufen. Mehrere Läufe derselben URL werden in der Registry zusammengeführt.</div>
+
+      <label for="text">Zusatztext <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <textarea id="text" rows="3" placeholder="Kontext, der nicht auf der Seite steht — z.B. Gründungsjahr, Zielgruppe, interne Kategorien…"></textarea>
+      <div class="hint">Funktioniert in beiden Modi. Kann auch erst im zweiten Lauf ergänzt werden — die Registry fügt neues Wissen hinzu, ohne vorherige Daten zu überschreiben.</div>
+
+      <label for="html">HTML direkt einfügen <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional, statt URL)</span></label>
+      <textarea id="html" rows="5" placeholder="<html>…</html>"></textarea>
+
+      <hr />
+
+      <!-- LLM access: adapts to login state -->
+      <label>LLM-Zugang</label>
+      <div class="llm-box" id="llm-box">
+        <!-- filled by JS based on auth state -->
       </div>
-      <button class="logout-btn" id="logout-btn">Abmelden</button>
-    </header>
 
-    <main>
-      <section class="left">
-        <label for="url">URL</label>
-        <input id="url" placeholder="https://example.com/seite" />
+      <label for="mode">Modus</label>
+      <select id="mode">
+        <option value="deterministic">Deterministisch</option>
+        <option value="auto" id="mode-auto">Auto (deterministisch + LLM-Tiefe)</option>
+      </select>
+      <div class="mode-desc" id="mode-desc"></div>
 
-        <label for="text">Zusatztext (optional)</label>
-        <textarea id="text" rows="4" placeholder="Kontext, der nicht auf der Seite steht…"></textarea>
+      <button class="run-btn" id="run">Markup erzeugen</button>
 
-        <label for="html">…oder HTML direkt einfügen</label>
-        <textarea id="html" rows="6" placeholder="<html>…</html>"></textarea>
+    </section>
 
-        <hr class="divider" />
+    <section class="right">
+      <div class="status-line" id="status">Bereit.</div>
 
-        <div class="key-box">
-          <label for="api-provider">LLM-Provider</label>
-          <select id="api-provider">
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
+      <div class="info-panel" id="info-panel">
+        <h4>Wie SchemaForge funktioniert</h4>
+        <ul>
+          <li><b>Deterministisch</b> — regelbasierte HTML-Analyse. Kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen direkt aus dem Markup.</li>
+          <li><b>Auto (LLM-Tiefe)</b> — kombiniert die regelbasierte Analyse mit einem Sprachmodell. Versteht implizite Zusammenhänge und ergänzt Felder, die im HTML nicht explizit strukturiert sind. Verbraucht API-Token.</li>
+          <li><b>Iteratives Anreichern</b> — erst URL analysieren, Schema prüfen, dann Zusatztext ergänzen und erneut generieren. Funktioniert mit beiden Modi in beliebiger Reihenfolge.</li>
+          <li><b>Registry (Gedächtnis)</b> — SchemaForge merkt sich extrahierte Entitäten über Läufe hinaus. Folge-Läufe ergänzen fehlendes Wissen; aktuellere Daten haben immer Vorrang.</li>
+        </ul>
+      </div>
 
-          <label for="api-key">
-            Eigener API-Key
-            <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
-          </label>
-          <input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />
-          <div class="key-hint" id="key-hint">Ohne Key: nur deterministischer Modus (kostenlos, keine LLM-Calls)</div>
-        </div>
+      <div id="detection" style="display:none;"></div>
+      <div id="validation" style="display:none;"></div>
 
-        <label for="mode">Modus</label>
-        <select id="mode">
-          <option value="deterministic">Nur deterministisch</option>
-          <option value="auto" id="mode-auto" disabled>Auto (deterministisch + LLM-Tiefe)</option>
-        </select>
-        <div class="mode-note" id="mode-note">LLM-Modus verfügbar, sobald du einen API-Key eingibst</div>
-
-        <button id="run">Markup erzeugen</button>
-      </section>
-
-      <section class="right">
-        <div id="status" class="meta">Bereit. Gib eine URL ein oder füge HTML ein.</div>
-        <div id="detection"></div>
-        <div id="validation"></div>
-        <div class="row">
-          <label style="margin:18px 0 6px;">JSON-LD</label>
-          <button class="copy" id="copy">kopieren (Script-Tag)</button>
-        </div>
-        <pre id="output">—</pre>
-      </section>
-    </main>
-  </div>
+      <div class="row" id="output-header" style="display:none;">
+        <label style="margin:0;">JSON-LD</label>
+        <button class="copy" id="copy">kopieren (Script-Tag)</button>
+      </div>
+      <pre id="output" style="display:none;"></pre>
+    </section>
+  </main>
 
   <script>
     const $ = (id) => document.getElementById(id);
     let session = sessionStorage.getItem("sf_token");
+    let loggedInUser = null;
+    let serverHasLlm = false;
     let lastScriptTag = "";
+
+    // ── Bootstrap ──
+    async function init() {
+      // 1) Check server LLM capability
+      try {
+        const h = await fetch("/api/health").then(r => r.json());
+        serverHasLlm = h.provider && h.provider !== "none";
+      } catch {}
+
+      // 2) Verify stored session
+      if (session) {
+        try {
+          const me = await fetch("/api/me", { headers: authHeaders() });
+          if (me.ok) {
+            loggedInUser = (await me.json()).user;
+          } else {
+            session = null;
+            sessionStorage.removeItem("sf_token");
+          }
+        } catch {
+          session = null;
+          sessionStorage.removeItem("sf_token");
+        }
+      }
+
+      renderAuthArea();
+      renderLlmBox();
+      updateModeOptions();
+    }
 
     // ── Auth helpers ──
     function authHeaders() {
       return { "Authorization": "Bearer " + session, "Content-Type": "application/json" };
     }
-    function showApp()   { $("login-screen").style.display = "none"; $("app").style.display = "block"; }
-    function showLogin() { $("login-screen").style.display = "flex"; $("app").style.display = "none"; }
 
-    if (session) showApp();
+    function renderAuthArea() {
+      if (loggedInUser) {
+        $("auth-area").innerHTML =
+          `<span class="user-badge">${loggedInUser}</span>` +
+          `<button class="btn-sm" id="logout-btn">Abmelden</button>`;
+        $("logout-btn").addEventListener("click", doLogout);
+      } else {
+        $("auth-area").innerHTML = `<button class="btn-sm primary" id="open-login-btn">Anmelden</button>`;
+        $("open-login-btn").addEventListener("click", openLoginModal);
+      }
+    }
+
+    function renderLlmBox() {
+      if (loggedInUser) {
+        $("llm-box").innerHTML =
+          `<div class="llm-server-badge"><div class="dot"></div>Server-Key aktiv — Auto-Modus verfügbar</div>` +
+          `<div class="hint ok" style="margin-top:6px;">Eigener API-Key nur nötig, wenn du einen anderen Provider nutzen möchtest.</div>` +
+          `<label for="api-provider" style="margin-top:10px;">Provider überschreiben <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>` +
+          `<select id="api-provider"><option value="">— Server-Key verwenden —</option><option value="openai">OpenAI (eigener Key)</option><option value="anthropic">Anthropic (eigener Key)</option></select>` +
+          `<div id="own-key-wrap" style="display:none;">` +
+          `<label for="api-key" style="margin-top:10px;">Eigener API-Key</label>` +
+          `<input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />` +
+          `<div class="hint" id="key-hint">Wird nur für diesen Request verwendet — nie gespeichert.</div>` +
+          `</div>`;
+        $("api-provider").addEventListener("change", () => {
+          $("own-key-wrap").style.display = $("api-provider").value ? "block" : "none";
+        });
+      } else {
+        $("llm-box").innerHTML =
+          `<div class="hint" style="margin:0 0 10px;">Ohne Anmeldung: kostenloser deterministischer Modus. Eigenen API-Key eingeben für LLM-Tiefe.</div>` +
+          `<label for="api-provider" style="margin-top:0;">Provider</label>` +
+          `<select id="api-provider"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option></select>` +
+          `<label for="api-key" style="margin-top:10px;">API-Key <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>` +
+          `<input id="api-key" type="password" placeholder="sk-…" autocomplete="off" />` +
+          `<div class="hint" id="key-hint">Ohne Key: nur deterministischer Modus möglich.</div>`;
+        $("api-key").addEventListener("input", onKeyInput);
+      }
+    }
+
+    function onKeyInput() {
+      const hasKey = $("api-key").value.trim().length > 0;
+      $("key-hint").textContent = hasKey
+        ? "Key wird nur für diesen Request gesendet — nie gespeichert."
+        : "Ohne Key: nur deterministischer Modus möglich.";
+      $("key-hint").className = hasKey ? "hint ok" : "hint";
+      updateModeOptions();
+    }
+
+    function updateModeOptions() {
+      const hasOwnKey = !!($("api-key") && $("api-key").value.trim());
+      const autoAvailable = loggedInUser
+        ? (serverHasLlm || hasOwnKey)
+        : hasOwnKey;
+
+      $("mode-auto").disabled = !autoAvailable;
+      if (!autoAvailable && $("mode").value === "auto") {
+        $("mode").value = "deterministic";
+      }
+      updateModeDesc();
+    }
+
+    function updateModeDesc() {
+      const descs = {
+        deterministic: "Regelbasierte HTML-Analyse — kostenlos, kein API-Key nötig. Erkennt Preise, Features, FAQs, Adressen strukturiert aus dem Markup.",
+        auto: "Deterministisch + KI-Vertiefung — erkennt implizite Zusammenhänge und ergänzt Felder, die im HTML nicht explizit strukturiert sind. Verbraucht API-Token.",
+      };
+      $("mode-desc").textContent = descs[$("mode").value] || "";
+    }
+
+    $("mode").addEventListener("change", updateModeDesc);
+
+    // ── Login modal ──
+    function openLoginModal() {
+      $("login-modal").style.display = "block";
+      $("login-user").focus();
+    }
+    function closeLoginModal() {
+      $("login-modal").style.display = "none";
+      $("login-err").textContent = "";
+    }
+    $("modal-backdrop").addEventListener("click", closeLoginModal);
+    $("login-cancel").addEventListener("click", closeLoginModal);
 
     $("login-btn").addEventListener("click", async () => {
       $("login-btn").disabled = true;
@@ -193,79 +349,93 @@
         const data = await res.json();
         if (!res.ok) { $("login-err").textContent = data.error || "Anmeldefehler"; return; }
         session = data.token;
+        loggedInUser = $("login-user").value;
         sessionStorage.setItem("sf_token", session);
-        showApp();
+        closeLoginModal();
+        renderAuthArea();
+        renderLlmBox();
+        updateModeOptions();
       } catch { $("login-err").textContent = "Verbindungsfehler"; }
-      finally   { $("login-btn").disabled = false; }
+      finally { $("login-btn").disabled = false; }
     });
     $("login-pass").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-btn").click(); });
     $("login-user").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-pass").focus(); });
 
-    $("logout-btn").addEventListener("click", async () => {
+    async function doLogout() {
       await fetch("/api/logout", { method: "POST", headers: authHeaders() }).catch(() => {});
       session = null;
+      loggedInUser = null;
       sessionStorage.removeItem("sf_token");
-      showLogin();
-    });
-
-    // ── API key toggles LLM mode ──
-    $("api-key").addEventListener("input", () => {
-      const hasKey = $("api-key").value.trim().length > 0;
-      $("mode-auto").disabled = !hasKey;
-      if (hasKey) {
-        $("mode").value = "auto";
-        $("mode-note").textContent = "";
-        $("key-hint").textContent = "Key wird nur für diesen Request verwendet — wird nicht gespeichert.";
-        $("key-hint").className = "key-hint active";
-      } else {
-        $("mode").value = "deterministic";
-        $("mode-note").textContent = "LLM-Modus verfügbar, sobald du einen API-Key eingibst";
-        $("key-hint").textContent = "Ohne Key: nur deterministischer Modus (kostenlos, keine LLM-Calls)";
-        $("key-hint").className = "key-hint";
-      }
-    });
+      renderAuthArea();
+      renderLlmBox();
+      updateModeOptions();
+    }
 
     // ── Generate ──
     $("run").addEventListener("click", async () => {
-      const apiKey = $("api-key").value.trim();
+      const apiKeyEl = $("api-key");
+      const providerEl = $("api-provider");
+      const ownKey = apiKeyEl ? apiKeyEl.value.trim() : "";
+      const ownProvider = providerEl ? providerEl.value : "";
+
+      // When logged in and no override is selected, send no apiKey → server uses its own key.
+      // When logged in and override provider is selected, use the entered key.
+      // When not logged in, send key if present.
+      let apiKey = undefined;
+      let provider = undefined;
+      if (loggedInUser) {
+        if (ownProvider && ownKey) { apiKey = ownKey; provider = ownProvider; }
+      } else if (ownKey && ownProvider) {
+        apiKey = ownKey; provider = ownProvider;
+      }
+
       const body = {
         url:  $("url").value.trim()  || undefined,
         text: $("text").value.trim() || undefined,
         html: $("html").value.trim() || undefined,
         mode: $("mode").value,
-        ...(apiKey ? { apiKey, provider: $("api-provider").value } : {}),
+        ...(apiKey ? { apiKey, provider } : {}),
       };
       $("run").disabled = true;
       $("status").textContent = "Analysiere…";
-      $("detection").innerHTML = "";
-      $("validation").innerHTML = "";
+      $("info-panel").style.display = "none";
+      $("detection").style.display = "none";
+      $("validation").style.display = "none";
+      $("output-header").style.display = "none";
+      $("output").style.display = "none";
+
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
-          headers: authHeaders(),
+          headers: loggedInUser ? authHeaders() : { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.status === 401) { session = null; sessionStorage.removeItem("sf_token"); showLogin(); return; }
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Fehler");
         render(data);
         $("status").textContent = "Fertig.";
       } catch (e) {
         $("status").textContent = "Fehler: " + e.message;
+        $("info-panel").style.display = "block";
       } finally {
         $("run").disabled = false;
       }
     });
 
-    $("copy").addEventListener("click", () => { if (lastScriptTag) navigator.clipboard.writeText(lastScriptTag); });
+    $("copy").addEventListener("click", () => {
+      if (lastScriptTag) navigator.clipboard.writeText(lastScriptTag);
+    });
 
     function render(data) {
       lastScriptTag = data.scriptTag || "";
+
       const rec = data.recommendation;
       const plugins = data.detection.detectedPlugins.join(", ") || "keine";
       $("detection").innerHTML =
         `<span class="badge ${rec}">Empfehlung: ${rec}</span>` +
         `<div class="meta">Bestehendes Markup: ${data.detection.hasExistingMarkup ? "ja" : "nein"} · Plugins: ${plugins}</div>`;
+      $("detection").style.display = "block";
+
       const v = data.validation;
       const items = v.issues.map(i =>
         `<li class="lvl-${i.level}">[${i.level}] ${i.subject ? i.subject + ": " : ""}${i.message}</li>`
@@ -273,8 +443,16 @@
       $("validation").innerHTML =
         `<div class="cov">Coverage-Score: <b>${v.coverageScore}</b></div>` +
         (items ? `<ul class="issues">${items}</ul>` : `<div class="meta">Keine Probleme gefunden.</div>`);
+      $("validation").style.display = "block";
+
+      $("output-header").style.display = "flex";
       $("output").textContent = JSON.stringify(data.jsonld, null, 2);
+      $("output").style.display = "block";
     }
+
+    // ── Start ──
+    updateModeDesc();
+    init();
   </script>
 </body>
 </html>

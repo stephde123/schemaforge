@@ -10,7 +10,6 @@ import { makeProviderFromKey } from "../core/llm/provider.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// In-memory session store: token → { user, expires }
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, { user: string; expires: number }>();
 
@@ -19,7 +18,7 @@ const RunSchema = z.object({
   html: z.string().optional(),
   text: z.string().optional(),
   mode: z.enum(["auto", "deterministic"]).optional(),
-  // User's own API key for LLM mode — never stored, only used for this request.
+  // User-supplied key for anonymous LLM access — never stored, one request only.
   apiKey: z.string().optional(),
   provider: z.enum(["openai", "anthropic"]).optional(),
 });
@@ -30,18 +29,23 @@ function getToken(req: express.Request): string | null {
   return null;
 }
 
+function getSession(req: express.Request): { user: string } | null {
+  const token = getToken(req);
+  if (!token) return null;
+  const s = sessions.get(token);
+  if (!s || s.expires < Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+  return { user: s.user };
+}
+
 function requireSession(
   req: express.Request,
   res: express.Response,
   next: express.NextFunction,
 ) {
-  const token = getToken(req);
-  if (!token) return res.status(401).json({ error: "Not authenticated" });
-  const session = sessions.get(token);
-  if (!session || session.expires < Date.now()) {
-    if (token) sessions.delete(token);
-    return res.status(401).json({ error: "Session expired" });
-  }
+  if (!getSession(req)) return res.status(401).json({ error: "Not authenticated" });
   next();
 }
 
@@ -57,6 +61,13 @@ async function main() {
     res.json({ ok: true, provider: cfg.llmProvider });
   });
 
+  // Returns the current user if the session token is valid.
+  app.get("/api/me", (req, res) => {
+    const session = getSession(req);
+    if (!session) return res.status(401).json({ error: "Not authenticated" });
+    res.json({ user: session.user });
+  });
+
   app.post("/api/login", (req, res) => {
     const { user, password } = req.body ?? {};
     if (user !== cfg.authUser || password !== cfg.authPassword) {
@@ -68,12 +79,15 @@ async function main() {
   });
 
   app.post("/api/logout", requireSession, (req, res) => {
-    const token = getToken(req)!;
-    sessions.delete(token);
+    sessions.delete(getToken(req)!);
     res.json({ ok: true });
   });
 
-  app.post("/api/generate", requireSession, async (req, res) => {
+  // Public endpoint — LLM access depends on auth state:
+  //   logged in        → server's configured LLM (from .env)
+  //   anonymous + key  → user's own key, one-shot provider
+  //   anonymous no key → deterministic only
+  app.post("/api/generate", async (req, res) => {
     const parsed = RunSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
@@ -83,12 +97,13 @@ async function main() {
       return res.status(400).json({ error: "Provide url, html, or text." });
     }
 
-    // Build a per-request provider from the user's own key.
-    // The server's own API key is never used for web requests.
+    const isLoggedIn = getSession(req) !== null;
     let llmOverride = undefined;
     let effectiveMode = mode;
 
-    if (apiKey && userProvider) {
+    if (isLoggedIn) {
+      // Use server's LLM — engine.run() will call this.llm (configured via .env).
+    } else if (apiKey && userProvider) {
       llmOverride = makeProviderFromKey(userProvider, apiKey);
     } else {
       effectiveMode = "deterministic";
