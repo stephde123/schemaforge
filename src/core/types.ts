@@ -42,6 +42,8 @@ export interface NormalizedInput {
   lang?: string;
   /** Page title if available. */
   title?: string;
+  /** Raw extra text supplied by the user — kept separate so LLM can treat it as binding instructions. */
+  userInstructions?: string;
 }
 
 export type SchemaPlugin =

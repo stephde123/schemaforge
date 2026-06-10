@@ -89,11 +89,11 @@ const URL_RULES: [RegExp, string, string[]][] = [
   [/\/profile\//i,                  "Person",               ["ProfilePage"]],
   [/\/team\/?(\?.*)?$/i,            "AboutPage",            ["Person"]],
   [/\/about\/?(\?.*)?$/i,           "AboutPage",            ["Organization", "Person"]],
-  [/\/about-me\/?(\?.*)?$/i,        "ProfilePage",          ["Person"]],
-  [/\/ueber-mich\/?(\?.*)?$/i,      "ProfilePage",          ["Person"]],
-  [/\/%C3%BCber-mich/i,              "ProfilePage",          ["Person"]],
-  [/\/about-us\/?(\?.*)?$/i,        "AboutPage",            ["Organization", "Person"]],
-  [/\/über-mich\/?(\?.*)?$/i,       "ProfilePage",          ["Person"]],
+  [/[-\/]about-me(\/|$)/i,          "ProfilePage",          ["Person"]],
+  [/[-\/]ueber-mich(\/|$)/i,        "ProfilePage",          ["Person"]],
+  [/\/%C3%BCber-mich/i,             "ProfilePage",          ["Person"]],
+  [/[-\/]about-us(\/|$)/i,          "AboutPage",            ["Organization", "Person"]],
+  [/[-\/]über-mich(\/|$)/i,         "ProfilePage",          ["Person"]],
   // Contact
   [/\/contact\/?(\?.*)?$/i,         "ContactPage",          ["LocalBusiness", "Organization"]],
   [/\/kontakt\/?(\?.*)?$/i,         "ContactPage",          ["LocalBusiness", "Organization"]],
@@ -210,7 +210,7 @@ const PLACE_OF_WORSHIP_PATTERNS = [
 const PERSON_PROFILE_PATTERNS = [
   // Generic "about me" / biography signals (English + German)
   /\babout\s+me\b/i, /\bmy\s+story\b/i, /\bbiograph(y|ie)\b/i,
-  /\büber\s+mich\b/i, /\bueber\s+mich\b/i, /\bmeine\s+geschichte\b/i,
+  /über\s+mich/i, /ueber\s+mich/i, /\bmeine\s+geschichte\b/i,
   /\bmein\s+weg\b/i, /\bwer\s+bin\s+ich\b/i, /\bich\s+bin\s+\w/i,
   // Roles that are almost always personal profiles
   /\bpersonal\s+trainer\b/i, /\blife\s+coach\b/i, /\bfreelancer\b/i,

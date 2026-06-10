@@ -147,6 +147,12 @@ function buildUserPrompt(
 ): string {
   return JSON.stringify(
     {
+      // BINDING USER INSTRUCTION (highest priority — must be followed exactly)
+      ...(input.userInstructions
+        ? {
+            userInstruction: `MANDATORY: The user explicitly instructed: "${input.userInstructions}". This overrides any other judgment. Follow it exactly.`,
+          }
+        : {}),
       page: {
         url: input.canonicalUrl || input.sourceUrl,
         title: input.title,
@@ -174,8 +180,9 @@ function buildUserPrompt(
       })),
       candidateTypes,
       validPropertiesPerType: propertyHints,
-      instruction:
-        'Analyze the full page text. Emit ALL relevant entities for this page. Return {"entities": [...]} with the most specific types and ALL relevant valid properties filled in. Be comprehensive.',
+      instruction: input.userInstructions
+        ? 'The userInstruction field contains a MANDATORY directive from the user — execute it first, then analyze the full page text and emit ALL relevant entities. Return {"entities": [...]}.'
+        : 'Analyze the full page text. Emit ALL relevant entities for this page. Return {"entities": [...]} with the most specific types and ALL relevant valid properties filled in. Be comprehensive.',
     },
     null,
     2,

@@ -26,10 +26,11 @@ export async function normalize(
   }
 
   if (!html) {
-    // Pure text input (no markup to parse).
+    const userInstructions = req.extraText?.trim() || undefined;
     return {
       sourceUrl,
-      text: (req.extraText || "").trim(),
+      text: userInstructions ?? "",
+      userInstructions,
     };
   }
 
@@ -53,9 +54,10 @@ export async function normalize(
   // Strip noise, keep readable text.
   $("script, style, noscript, template, svg").remove();
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
-  const text = [bodyText, req.extraText?.trim()].filter(Boolean).join("\n\n");
+  const userInstructions = req.extraText?.trim() || undefined;
+  const text = [bodyText, userInstructions].filter(Boolean).join("\n\n");
 
-  return { canonicalUrl, sourceUrl, html, text, lang, title };
+  return { canonicalUrl, sourceUrl, html, text, lang, title, userInstructions };
 }
 
 async function fetchHtml(url: string, cfg: Config): Promise<string> {
