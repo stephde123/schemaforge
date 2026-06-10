@@ -11,6 +11,8 @@ export interface Config {
   fetchMaxBytes: number;
   registryPath: string;
   schemaDumpPath: string;
+  authUser: string;
+  authPassword: string;
 }
 
 export function loadConfig(): Config {
@@ -27,5 +29,7 @@ export function loadConfig(): Config {
     registryPath: process.env.REGISTRY_PATH || "./data/registry.json",
     schemaDumpPath:
       process.env.SCHEMA_DUMP_PATH || "./data/schemaorg-current-https.jsonld",
+    authUser: process.env.AUTH_USER || "stephan",
+    authPassword: process.env.AUTH_PASSWORD || "TestSchemaForge",
   };
 }
