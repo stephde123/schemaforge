@@ -2,21 +2,238 @@ import * as cheerio from "cheerio";
 import type { Entity, NormalizedInput, DetectionResult } from "../types.js";
 import type { PageClassification } from "../classify.js";
 
+// ---------------------------------------------------------------------------
+// wpSignals extraction — authoritative CMS data, runs before HTML parsing
+// ---------------------------------------------------------------------------
+
+function extractFromWpSignals(input: NormalizedInput): Entity[] {
+  const sig = input.wpSignals;
+  if (!sig) return [];
+
+  const entities: Entity[] = [];
+
+  // WooCommerce → Product + Offer
+  if (sig.woocommerce) {
+    const woo = sig.woocommerce;
+    const offerProps: Record<string, unknown> = {};
+    if (woo.price)        offerProps.price         = woo.price;
+    if (woo.currency)     offerProps.priceCurrency  = woo.currency;
+    if (woo.availability) offerProps.availability   = `https://schema.org/${woo.availability}`;
+    if (woo.regularPrice && woo.salePrice) {
+      offerProps.priceSpecification = {
+        "@type": "UnitPriceSpecification",
+        price: woo.salePrice,
+        priceCurrency: woo.currency ?? "EUR",
+      };
+    }
+    const productProps: Record<string, unknown> = pruneEmpty({
+      name: sig.post?.title,
+      description: sig.seo?.description ?? sig.post?.excerpt,
+      sku: woo.sku,
+      image: sig.post?.featuredImage?.url,
+      offers: Object.keys(offerProps).length ? { "@type": "Offer", ...offerProps } : undefined,
+    });
+    if (woo.weight) productProps.weight = { "@type": "QuantitativeValue", value: woo.weight };
+    if (woo.dimensions) {
+      const dims = [
+        woo.dimensions.length ? { "@type": "QuantitativeValue", name: "length", value: woo.dimensions.length } : null,
+        woo.dimensions.width  ? { "@type": "QuantitativeValue", name: "width",  value: woo.dimensions.width  } : null,
+        woo.dimensions.height ? { "@type": "QuantitativeValue", name: "height", value: woo.dimensions.height } : null,
+      ].filter(Boolean);
+      if (dims.length) productProps.hasMeasurement = dims;
+    }
+    entities.push({ type: "Product", props: productProps, _source: "deterministic" });
+  }
+
+  // Post type → BlogPosting / Article
+  const postType = sig.post?.type;
+  const isArticlePost = postType === "post" || (
+    postType != null &&
+    !["product", "page", "tribe_events", "job_listing",
+      "download", "lp_course", "tutor-course", "tutor_course", "llms_course"].includes(postType)
+  );
+  if (isArticlePost && (sig.post?.publishedAt || sig.post?.author)) {
+    entities.push({
+      type: postType === "post" ? "BlogPosting" : "Article",
+      props: pruneEmpty({
+        headline: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        datePublished: sig.post?.publishedAt,
+        dateModified: sig.post?.modifiedAt,
+        author: sig.post?.author?.name ? pruneEmpty({
+          "@type": "Person",
+          name: sig.post.author.name,
+          url: sig.post.author.url,
+          description: sig.post.author.bio,
+        }) : undefined,
+        image: sig.post?.featuredImage?.url,
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  // Gutenberg blocks → FAQPage
+  if (sig.blocks) {
+    const faqItems: Array<{ question: string; answer: string }> = [];
+    for (const block of sig.blocks) {
+      if (block.faqItems) faqItems.push(...block.faqItems);
+    }
+    if (faqItems.length >= 2) {
+      entities.push({
+        type: "FAQPage",
+        props: {
+          mainEntity: faqItems.slice(0, 20).map((qa) => ({
+            "@type": "Question",
+            name: qa.question,
+            acceptedAnswer: { "@type": "Answer", text: qa.answer },
+          })),
+        },
+        _source: "deterministic",
+      });
+    }
+  }
+
+  // The Events Calendar → Event
+  if (sig.events?.startDate) {
+    const ev = sig.events;
+    entities.push({
+      type: "Event",
+      props: pruneEmpty({
+        name: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        startDate: ev.startDate,
+        endDate: ev.endDate,
+        image: sig.post?.featuredImage?.url,
+        url: ev.ticketUrl,
+        eventStatus: ev.status ? `https://schema.org/${ev.status}` : undefined,
+        location: ev.venue ? pruneEmpty({
+          "@type": "Place",
+          name: ev.venue.name,
+          telephone: ev.venue.phone,
+          url: ev.venue.url,
+          address: (ev.venue.address || ev.venue.city) ? pruneEmpty({
+            "@type": "PostalAddress",
+            streetAddress: ev.venue.address,
+            addressLocality: ev.venue.city,
+            postalCode: ev.venue.zip,
+            addressCountry: ev.venue.country,
+          }) : undefined,
+        }) : undefined,
+        organizer: ev.organizer?.name ? pruneEmpty({
+          "@type": "Organization",
+          name: ev.organizer.name,
+          url: ev.organizer.url,
+          email: ev.organizer.email,
+          telephone: ev.organizer.phone,
+        }) : undefined,
+        offers: ev.cost ? { "@type": "Offer", price: ev.cost, url: ev.ticketUrl } : undefined,
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  // WP Job Manager → JobPosting
+  if (sig.jobs && (sig.jobs.company || sig.jobs.location || sig.jobs.jobType)) {
+    const job = sig.jobs;
+    entities.push({
+      type: "JobPosting",
+      props: pruneEmpty({
+        title: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        employmentType: job.jobType?.toUpperCase(),
+        datePosted: sig.post?.publishedAt,
+        validThrough: job.expiryDate,
+        jobLocation: job.location ? {
+          "@type": "Place",
+          address: { "@type": "PostalAddress", addressLocality: job.location },
+        } : undefined,
+        hiringOrganization: job.company ? pruneEmpty({
+          "@type": "Organization", name: job.company, url: job.companyUrl,
+        }) : undefined,
+        baseSalary: job.salary ? { "@type": "MonetaryAmount", value: job.salary } : undefined,
+        directApply: job.applyUrl ? true : undefined,
+        applicationContact: job.applyUrl ? {
+          "@type": "ContactPoint", contactType: "Application", url: job.applyUrl,
+        } : undefined,
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  // LearnPress / TutorLMS / LifterLMS → Course
+  if (sig.courses) {
+    const course = sig.courses;
+    const instance: Record<string, unknown> = pruneEmpty({
+      "@type": "CourseInstance",
+      courseMode: "online",
+      duration: course.duration,
+      instructor: course.instructor ? { "@type": "Person", name: course.instructor } : undefined,
+    });
+    entities.push({
+      type: "Course",
+      props: pruneEmpty({
+        name: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        educationalLevel: course.level,
+        image: sig.post?.featuredImage?.url,
+        hasCourseInstance: Object.keys(instance).length > 1 ? [instance] : undefined,
+        offers: course.price ? {
+          "@type": "Offer",
+          price: course.price,
+          priceCurrency: course.currency ?? "EUR",
+        } : undefined,
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  // Easy Digital Downloads → SoftwareApplication
+  if (sig.edd) {
+    const edd = sig.edd;
+    entities.push({
+      type: "SoftwareApplication",
+      props: pruneEmpty({
+        name: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        image: sig.post?.featuredImage?.url,
+        applicationCategory: edd.downloadCategory?.[0] ?? "WebApplication",
+        offers: edd.price ? {
+          "@type": "Offer", price: edd.price, priceCurrency: edd.currency ?? "USD",
+        } : undefined,
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  // Rating plugins → AggregateRating
+  if (sig.ratings?.average != null) {
+    entities.push({
+      type: "AggregateRating",
+      props: pruneEmpty({
+        ratingValue: String(sig.ratings.average),
+        reviewCount: sig.ratings.count != null ? String(sig.ratings.count) : undefined,
+        bestRating: "5",
+        worstRating: "1",
+      }),
+      _source: "deterministic",
+    });
+  }
+
+  return entities;
+}
+
 export function deterministicExtract(
   input: NormalizedInput,
   detection: DetectionResult,
   classification?: PageClassification,
 ): Entity[] {
-  // 1) Collect existing JSON-LD — added at the END so fresh deterministic extraction
-  // wins on conflicts (existing markup may be stale or have encoding issues), but
-  // existing values still fill any gaps (e.g. @id, telephone) that we didn't extract.
+  // 1) Collect existing JSON-LD — lowest priority; fills gaps only.
   const existingEntities: Entity[] = [];
   for (const item of detection.existing) {
     if (item.format !== "json-ld") continue;
     for (const node of flattenJsonLd(item.data)) {
       const type = node["@type"];
       if (!type) continue;
-      // Strip structural JSON-LD keys from props — @context belongs at document level only
       const { "@type": _t, "@id": id, "@context": _ctx, ...rest } = node;
       existingEntities.push({
         id: typeof id === "string" ? id : undefined,
@@ -27,7 +244,11 @@ export function deterministicExtract(
     }
   }
 
-  if (!input.html) return existingEntities;
+  // 2) Authoritative CMS data — highest deterministic priority.
+  const wpEntities = extractFromWpSignals(input);
+  const wpTypes    = new Set(wpEntities.flatMap((e) => [e.type].flat()));
+
+  if (!input.html) return [...wpEntities, ...existingEntities];
 
   const entities: Entity[] = [];
 
@@ -81,7 +302,7 @@ export function deterministicExtract(
     });
   }
 
-  // 5) SoftwareApplication entity + feature list
+  // 5) SoftwareApplication entity + feature list — skip if EDD already provided it
   const hint = classification?.primaryHint;
   const isApp =
     hint === "SoftwareApplication" ||
@@ -89,7 +310,7 @@ export function deterministicExtract(
     hint === "MobileApplication" ||
     classification?.additionalHints.includes("SoftwareApplication");
 
-  if (isApp) {
+  if (isApp && !wpTypes.has("SoftwareApplication")) {
     const features = extractFeatureItems($, classification?.primaryHint === "SoftwareApplication" && /\/features?\//i.test(input.canonicalUrl || input.sourceUrl || ""));
     const appEntity: Entity = {
       type: "SoftwareApplication",
@@ -127,21 +348,20 @@ export function deterministicExtract(
     }
   }
 
-  // 6) Pricing / Offer extraction
+  // 6) Pricing / Offer extraction — skip if WooCommerce product already provides authoritative data
   const hasPricing =
     classification?.additionalHints.includes("Offer") ||
     classification?.signals.includes("pricing-signals");
 
-  if (hasPricing) {
+  if (hasPricing && !wpTypes.has("Product")) {
     const offers = extractPricingOffers($);
     for (const offer of offers) {
       entities.push({ type: "Offer", props: offer, _source: "deterministic" });
     }
   }
 
-  // 7) FAQ extraction — always runs; structural patterns (microdata, class-based,
-  //    details/accordion) are precise enough to fire without a classification hint.
-  const qaPairs = extractFaqItems($);
+  // 7) FAQ extraction — skip if Gutenberg blocks already provided authoritative QA pairs.
+  const qaPairs = wpTypes.has("FAQPage") ? [] : extractFaqItems($);
   if (qaPairs.length >= 2) {
     entities.push({
       type: "FAQPage",
@@ -159,22 +379,24 @@ export function deterministicExtract(
     });
   }
 
-  // 8) Article signals (author, datePublished)
+  // 8) Article signals — skip if wpSignals already extracted an article-type entity.
   const isArticle =
     hint === "Article" ||
     hint === "BlogPosting" ||
     hint === "NewsArticle" ||
     classification?.additionalHints.includes("Article");
-  if (isArticle) {
+  const articleCovered =
+    wpTypes.has("Article") || wpTypes.has("BlogPosting") || wpTypes.has("NewsArticle");
+  if (isArticle && !articleCovered) {
     const article = extractArticleMeta($, input);
     if (article) entities.push(article);
   }
 
-  // 9) AggregateRating from visible star/review signals
+  // 9) AggregateRating — skip if a rating plugin provided authoritative data via wpSignals.
   const hasRatings =
     classification?.additionalHints.includes("AggregateRating") ||
     classification?.signals.includes("review-signals");
-  if (hasRatings) {
+  if (hasRatings && !wpTypes.has("AggregateRating")) {
     const rating = extractAggregateRating($);
     if (rating) entities.push(rating);
   }
@@ -191,8 +413,8 @@ export function deterministicExtract(
     if (placeEntity) entities.push(placeEntity);
   }
 
-  // Existing JSON-LD fills gaps in freshly extracted entities (lower priority).
-  return [...entities, ...existingEntities];
+  // Priority: wpSignals (authoritative) > fresh HTML extraction > existing JSON-LD (may be stale).
+  return [...wpEntities, ...entities, ...existingEntities];
 }
 
 // ---------------------------------------------------------------------------

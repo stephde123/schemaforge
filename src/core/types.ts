@@ -19,6 +19,13 @@ export interface WpSignals {
     publishedAt?: string;    // ISO 8601
     modifiedAt?: string;
   };
+  /** SEO plugin meta collected from Yoast / Rank Math / AIOSEO / SEOPress. */
+  seo?: {
+    title?: string;
+    description?: string;
+    canonical?: string;
+    plugin?: string;
+  };
   taxonomy?: {
     categories?: string[];
     tags?: string[];
@@ -30,8 +37,20 @@ export interface WpSignals {
     url?: string;
     logo?: string;
   };
-  /** Non-private post meta keys (no leading underscore). Values truncated to 300 chars. */
+  /** Non-private post meta keys plus an explicit allowlist of useful private keys. */
   meta?: Record<string, unknown>;
+  /**
+   * Parsed Gutenberg blocks with structured content signals.
+   * FAQ blocks carry extracted QA pairs; ordered lists carry their items.
+   */
+  blocks?: Array<{
+    name: string;
+    ordered?: boolean;
+    items?: string[];
+    faqItems?: Array<{ question: string; answer: string }>;
+    url?: string;
+    alt?: string;
+  }>;
   woocommerce?: {
     sku?: string;
     price?: string;
@@ -42,6 +61,64 @@ export interface WpSignals {
     weight?: string;
     dimensions?: { length?: string; width?: string; height?: string };
     categories?: string[];
+  };
+  /** The Events Calendar (tribe_events) event data. */
+  events?: {
+    startDate?: string;
+    endDate?: string;
+    timezone?: string;
+    venue?: {
+      name?: string;
+      address?: string;
+      city?: string;
+      zip?: string;
+      country?: string;
+      phone?: string;
+      url?: string;
+    };
+    organizer?: {
+      name?: string;
+      email?: string;
+      url?: string;
+      phone?: string;
+    };
+    ticketUrl?: string;
+    cost?: string;
+    status?: string;
+    allDay?: boolean;
+  };
+  /** LMS course data from LearnPress / TutorLMS / LifterLMS. */
+  courses?: {
+    price?: string;
+    currency?: string;
+    duration?: string;
+    level?: string;
+    instructor?: string;
+    maxStudents?: string;
+  };
+  /** WP Job Manager job posting data. */
+  jobs?: {
+    jobType?: string;
+    location?: string;
+    salary?: string;
+    company?: string;
+    companyUrl?: string;
+    applyUrl?: string;
+    remote?: boolean;
+    expiryDate?: string;
+  };
+  /** Easy Digital Downloads (download post type) data. */
+  edd?: {
+    price?: string;
+    currency?: string;
+    downloadCategory?: string[];
+    downloadTag?: string[];
+  };
+  /** Aggregate rating from Site Reviews, WP-Review, or similar plugins. */
+  ratings?: {
+    average?: number;
+    count?: number;
+    source?: string;
   };
 }
 

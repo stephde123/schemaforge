@@ -65,10 +65,18 @@ Prefer it over anything inferred from the page content. Do NOT omit or contradic
 - site.name / url    → WebSite entity (name, url)
 - site.logo          → Organization.logo as ImageObject
 - meta.*             → scan key names for schema.org hints (e.g. "event_start_date"→startDate, "venue_name"→location.name)
+- seo.description / seo.title     → prefer over body-text inferences for description/name
+- blocks[].faqItems               → authoritative Q&A pairs from Gutenberg FAQ blocks; always build FAQPage from these
+- blocks[].items (ordered: true)  → ordered list items; treat as HowTo steps if page context supports it
 - woocommerce.sku    → Product.sku
 - woocommerce.price / currency / availability → Product.offers (Offer with price, priceCurrency, availability)
 - woocommerce.regularPrice / salePrice → include in priceSpecification when both are present
 - woocommerce.weight / dimensions → Product.weight / hasMeasurement
+- events.*           → emit Event with startDate, endDate, location (Place+PostalAddress), organizer, offers
+- courses.*          → emit Course with hasCourseInstance, offers, educationalLevel, instructor (Person)
+- jobs.*             → emit JobPosting with employmentType, hiringOrganization, baseSalary, jobLocation
+- edd.*              → emit SoftwareApplication (or Product) with offers from price/currency; use downloadCategory for applicationCategory
+- ratings.average / count → emit AggregateRating and attach it to the primary entity (Product, Course, LocalBusiness, etc.)
 
 ## What to look for per page type
 
