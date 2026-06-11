@@ -10,7 +10,7 @@ export interface PageClassification {
 
 /**
  * URL-path rules: [pattern, primaryType, additionalTypes]
- * Order matters — first match wins for primaryHint.
+ * All matching rules now vote (evidence-scoring); first-match is no longer a hard break.
  */
 const URL_RULES: [RegExp, string, string[]][] = [
   // Software / SaaS
@@ -210,11 +210,9 @@ const PLACE_OF_WORSHIP_PATTERNS = [
 ];
 
 const PERSON_PROFILE_PATTERNS = [
-  // Generic "about me" / biography signals (English + German)
   /\babout\s+me\b/i, /\bmy\s+story\b/i, /\bbiograph(y|ie)\b/i,
   /über\s+mich/i, /ueber\s+mich/i, /\bmeine\s+geschichte\b/i,
   /\bmein\s+weg\b/i, /\bwer\s+bin\s+ich\b/i, /\bich\s+bin\s+\w/i,
-  // Roles that are almost always personal profiles
   /\bpersonal\s+trainer\b/i, /\blife\s+coach\b/i, /\bfreelancer\b/i,
   /\bspeaker\b/i, /\bcoach\b/i, /\bberater(in)?\b/i, /\btrainer(in)?\b/i,
   /\bphotograph(er|in)\b/i, /\bdesigner(in)?\b/i, /\bfreelance\b/i,
@@ -229,198 +227,158 @@ const TOURIST_ATTRACTION_PATTERNS = [
   /tourist\s+attract/i, /\barchitekt(ur)?\b/i,
 ];
 
-export function classifyPage(input: NormalizedInput): PageClassification {
-  const signals: string[] = [];
-  const additional = new Set<string>();
-  let primaryHint = "WebPage";
+// ---------------------------------------------------------------------------
+// Evidence-scoring engine
+// ---------------------------------------------------------------------------
 
-  const url = (input.canonicalUrl || input.sourceUrl || "").toLowerCase();
+/**
+ * Types that are always additive/subordinate and must not become the primary
+ * classification hint, even if they accumulate the highest score.
+ */
+const NON_PRIMARY = new Set([
+  "Offer", "AggregateOffer", "PriceSpecification",
+  "AggregateRating", "Review",
+  "ItemList", "HowToStep", "BreadcrumbList", "PostalAddress",
+  "Question", "Answer",
+  "PlaceOfWorship", "CivicStructure",
+  "FoodEstablishment", "LodgingBusiness",
+  "TouristAttraction", "LandmarksOrHistoricalBuildings",
+  "RealEstateAgent",
+]);
+
+export function classifyPage(input: NormalizedInput): PageClassification {
+  const scores = new Map<string, number>();
+  const signals: string[] = [];
+
+  const addSignal = (s: string) => { if (!signals.includes(s)) signals.push(s); };
+  const v = (type: string, score: number) => scores.set(type, (scores.get(type) ?? 0) + score);
+
+  const url  = (input.canonicalUrl || input.sourceUrl || "").toLowerCase();
   const text = (input.text || "").toLowerCase();
   const html = (input.html || "").toLowerCase();
+  const sig  = input.wpSignals;
 
-  // 1) URL-path rules (highest confidence)
+  // --- Tier 1: authoritative wpSignals (60–80 pts) ---
+  if (sig?.events?.startDate) {
+    v("Event", 80); addSignal("wpsig:events");
+  }
+  if (sig?.jobs && (sig.jobs.company || sig.jobs.location || sig.jobs.jobType)) {
+    v("JobPosting", 80); addSignal("wpsig:jobs");
+  }
+  if (sig?.courses) {
+    v("Course", 80); addSignal("wpsig:courses");
+  }
+  if (sig?.edd) {
+    v("SoftwareApplication", 70); addSignal("wpsig:edd");
+  }
+  if (sig?.woocommerce) {
+    v("Product", 65); addSignal("wpsig:woocommerce");
+  }
+  const postType = sig?.post?.type;
+  if (postType === "product")                                                    { v("Product", 60);              addSignal("wpsig:post_type=product"); }
+  else if (postType === "tribe_events")                                          { v("Event", 70);                addSignal("wpsig:post_type=tribe_events"); }
+  else if (postType === "job_listing")                                           { v("JobPosting", 70);           addSignal("wpsig:post_type=job_listing"); }
+  else if (postType === "download")                                              { v("SoftwareApplication", 60); addSignal("wpsig:post_type=download"); }
+  else if (["lp_course","tutor-course","tutor_course","course"].includes(postType ?? "")) {
+    v("Course", 70); addSignal("wpsig:post_type=course");
+  }
+  else if (postType === "post")                                                  { v("BlogPosting", 30);          addSignal("wpsig:post_type=post"); }
+
+  if (sig?.blocks?.some(b => (b.faqItems?.length ?? 0) >= 2)) {
+    v("FAQPage", 40); addSignal("wpsig:faq_blocks");
+  }
+  if (sig?.ratings?.average != null) {
+    v("AggregateRating", 30); addSignal("wpsig:ratings");
+  }
+
+  // --- Tier 2: URL-path rules (45 pts each; all matching rules vote) ---
   for (const [pattern, primary, extras] of URL_RULES) {
     if (pattern.test(url)) {
-      primaryHint = primary;
-      extras.forEach((t) => additional.add(t));
-      signals.push(`url:${pattern.source}`);
-      break;
+      v(primary, 45); addSignal(`url:${pattern.source}`);
+      for (const extra of extras) v(extra, 15);
     }
   }
 
-  // 2) og:type meta tag
+  // --- Tier 3: HTML meta signals ---
   const ogTypeMatch = html.match(/property="og:type"\s+content="([^"]+)"/);
   if (ogTypeMatch) {
-    const ogType = ogTypeMatch[1];
-    if (ogType === "article") {
-      if (primaryHint === "WebPage") primaryHint = "Article";
-      additional.add("Article");
-      signals.push("og:type=article");
-    } else if (ogType === "product") {
-      if (primaryHint === "WebPage") primaryHint = "Product";
-      additional.add("Product");
-      signals.push("og:type=product");
+    if (ogTypeMatch[1] === "article") { v("Article", 35); addSignal("og:type=article"); }
+    if (ogTypeMatch[1] === "product") { v("Product", 35); addSignal("og:type=product"); }
+  }
+  if (html.includes('itemtype="https://schema.org/faqpage"')) {
+    v("FAQPage", 30); addSignal("microdata:FAQPage");
+  }
+
+  // --- Tier 4: text/HTML content signals ---
+  if (SOFTWARE_TERMS.some(t => text.includes(t)))                             { v("SoftwareApplication", 25); addSignal("software-terminology"); }
+  if (FEATURE_TERMS.some(t => text.includes(t)))                              { v("ItemList", 10);             addSignal("feature-list-content"); }
+  if (PRICING_PATTERNS.some(p => p.test(text))) {
+    v("Offer", 10); v("AggregateOffer", 5); v("PriceSpecification", 5); addSignal("pricing-signals");
+  }
+  if (FAQ_PATTERNS.some(p => p.test(text)))                                   { v("FAQPage", 20);              addSignal("faq-content"); }
+  if (HOWTO_PATTERNS.some(p => p.test(text)))                                 { v("HowTo", 20);                addSignal("howto-content"); }
+  if (REVIEW_PATTERNS.some(p => p.test(text)))                                { v("AggregateRating", 10); v("Review", 10); addSignal("review-signals"); }
+  if (EVENT_PATTERNS.some(p => p.test(text)))                                 { v("Event", 25);                addSignal("event-signals"); }
+  if (LOCAL_BUSINESS_PATTERNS.some(p => p.test(text)))                        { v("LocalBusiness", 25);        addSignal("local-business-signals"); }
+  if (PLACE_OF_WORSHIP_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("Church", 45); v("PlaceOfWorship", 20); v("CivicStructure", 10); v("LocalBusiness", 15);
+    addSignal("place-of-worship");
+  }
+  if (TOURIST_ATTRACTION_PATTERNS.some(p => p.test(text))) {
+    v("TouristAttraction", 20); v("LandmarksOrHistoricalBuildings", 15); addSignal("tourist-attraction");
+  }
+  if (/\b\d{5}[\s ]?[A-ZÄÖÜ]/i.test(text))                                   { v("LocalBusiness", 20);        addSignal("postal-address-de"); }
+  if (RESTAURANT_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("Restaurant", 40); v("FoodEstablishment", 15); v("LocalBusiness", 10); addSignal("restaurant-signals");
+  }
+  if (HOTEL_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("Hotel", 40); v("LodgingBusiness", 15); v("LocalBusiness", 10); addSignal("hotel-signals");
+  }
+  if (MEDICAL_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("MedicalClinic", 35); v("LocalBusiness", 10); addSignal("medical-signals");
+  }
+  if (REAL_ESTATE_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("RealEstateListing", 30); v("RealEstateAgent", 10); addSignal("real-estate-signals");
+  }
+  if (JOB_PATTERNS.some(p => p.test(text) || p.test(url)))                   { v("JobPosting", 30);           addSignal("job-posting-signals"); }
+  if (PERSON_PROFILE_PATTERNS.some(p => p.test(text) || p.test(url))) {
+    v("ProfilePage", 30); v("Person", 15); addSignal("person-profile-signals");
+  }
+  if (/<article[\s>]/i.test(html) || html.includes('class="post') || html.includes("class='post")) {
+    v("BlogPosting", 15); addSignal("article-html-structure");
+  }
+  if (html.includes("<video") || html.includes("youtube.com/embed") || html.includes("vimeo.com/video")) {
+    v("VideoObject", 15); addSignal("video-embed");
+  }
+
+  // --- Resolve primaryHint: highest-scoring non-additive type wins ---
+  let primaryHint = "WebPage";
+  let topScore = 0;
+
+  for (const [type, score] of scores) {
+    if (!NON_PRIMARY.has(type) && score > topScore) {
+      topScore = score;
+      primaryHint = type;
     }
   }
 
-  // 3) Software signals
-  if (SOFTWARE_TERMS.some((t) => text.includes(t))) {
-    if (primaryHint === "WebPage") primaryHint = "SoftwareApplication";
-    additional.add("SoftwareApplication");
-    signals.push("software-terminology");
-  }
-
-  // 4) Feature list signals
-  if (FEATURE_TERMS.some((t) => text.includes(t))) {
-    additional.add("ItemList");
-    signals.push("feature-list-content");
-  }
-
-  // 5) Pricing signals
-  if (PRICING_PATTERNS.some((p) => p.test(text))) {
-    additional.add("Offer");
-    additional.add("AggregateOffer");
-    additional.add("PriceSpecification");
-    signals.push("pricing-signals");
-  }
-
-  // 6) FAQ signals
-  if (FAQ_PATTERNS.some((p) => p.test(text)) || html.includes('itemtype="https://schema.org/faqpage"')) {
-    additional.add("FAQPage");
-    additional.add("Question");
-    signals.push("faq-content");
-  }
-
-  // 7) HowTo signals
-  if (HOWTO_PATTERNS.some((p) => p.test(text))) {
-    additional.add("HowTo");
-    additional.add("HowToStep");
-    signals.push("howto-content");
-  }
-
-  // 8) Review / rating signals
-  if (REVIEW_PATTERNS.some((p) => p.test(text))) {
-    additional.add("Review");
-    additional.add("AggregateRating");
-    signals.push("review-signals");
-  }
-
-  // 9) Event signals
-  if (EVENT_PATTERNS.some((p) => p.test(text))) {
-    additional.add("Event");
-    additional.add("OnlineEvent");
-    signals.push("event-signals");
-  }
-
-  // 10) Local business signals
-  if (LOCAL_BUSINESS_PATTERNS.some((p) => p.test(text))) {
-    if (primaryHint === "WebPage") primaryHint = "LocalBusiness";
-    additional.add("LocalBusiness");
-    signals.push("local-business-signals");
-  }
-
-  // 11) Place of worship / religious site (English + German)
-  if (PLACE_OF_WORSHIP_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage" || primaryHint === "LocalBusiness") primaryHint = "Church";
-    additional.add("Church");
-    additional.add("PlaceOfWorship");
-    additional.add("CivicStructure");
-    additional.add("LocalBusiness");
-    signals.push("place-of-worship");
-  }
-
-  // 12) Tourist attraction / historical landmark
-  if (TOURIST_ATTRACTION_PATTERNS.some((p) => p.test(text))) {
-    additional.add("TouristAttraction");
-    additional.add("LandmarksOrHistoricalBuildings");
-    signals.push("tourist-attraction");
-  }
-
-  // 13) German postal code → address present → local business likely
-  if (/\b\d{5}[\s ]?[A-ZÄÖÜ]/i.test(text)) {
-    if (primaryHint === "WebPage") primaryHint = "LocalBusiness";
-    additional.add("LocalBusiness");
-    additional.add("PostalAddress");
-    signals.push("postal-address-de");
-  }
-
-  // 14) Restaurant / food service
-  if (RESTAURANT_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage" || primaryHint === "LocalBusiness") primaryHint = "Restaurant";
-    additional.add("Restaurant");
-    additional.add("FoodEstablishment");
-    additional.add("LocalBusiness");
-    signals.push("restaurant-signals");
-  }
-
-  // 15) Hotel / lodging
-  if (HOTEL_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage" || primaryHint === "LocalBusiness") primaryHint = "Hotel";
-    additional.add("Hotel");
-    additional.add("LodgingBusiness");
-    additional.add("LocalBusiness");
-    signals.push("hotel-signals");
-  }
-
-  // 16) Medical / healthcare
-  if (MEDICAL_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage" || primaryHint === "LocalBusiness") primaryHint = "MedicalClinic";
-    additional.add("MedicalClinic");
-    additional.add("LocalBusiness");
-    signals.push("medical-signals");
-  }
-
-  // 17) Real estate
-  if (REAL_ESTATE_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage") primaryHint = "RealEstateListing";
-    additional.add("RealEstateListing");
-    additional.add("RealEstateAgent");
-    signals.push("real-estate-signals");
-  }
-
-  // 18) Job posting
-  if (JOB_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage") primaryHint = "JobPosting";
-    additional.add("JobPosting");
-    signals.push("job-posting-signals");
-  }
-
-  // 18b) Person / personal profile page
-  if (PERSON_PROFILE_PATTERNS.some((p) => p.test(text) || p.test(url))) {
-    if (primaryHint === "WebPage") primaryHint = "ProfilePage";
-    additional.add("ProfilePage");
-    additional.add("Person");
-    signals.push("person-profile-signals");
-  }
-
-  // 19) Article/blog signals from HTML structure
-  if (/<article[\s>]/i.test(html) || html.includes('class="post') || html.includes("class='post")) {
-    additional.add("BlogPosting");
-    additional.add("Article");
-    signals.push("article-html-structure");
-  }
-
-  // 20) Video signals
-  if (html.includes("<video") || html.includes("youtube.com/embed") || html.includes("vimeo.com/video")) {
-    additional.add("VideoObject");
-    signals.push("video-embed");
+  // Collect additional hints: all types with any score except primary
+  const additional = new Set<string>();
+  for (const [type] of scores) {
+    if (type !== primaryHint) additional.add(type);
   }
 
   return {
     primaryHint,
     additionalHints: [...additional],
     signals,
-    confidence: computeHeuristicConfidence(primaryHint, signals),
+    confidence: scoreToConfidence(topScore, primaryHint),
   };
 }
 
-function computeHeuristicConfidence(primaryHint: string, signals: string[]): number {
-  if (primaryHint === "WebPage") return 0.20;
-  const hasUrlRule = signals.some((s) => s.startsWith("url:"));
-  const hasOgType  = signals.some((s) => s.startsWith("og:type="));
-  // Additional corroborating text/HTML signals beyond the primary matcher
-  const textCount  = signals.filter((s) => !s.startsWith("url:") && !s.startsWith("og:")).length;
-  if (hasUrlRule) return Math.min(0.85 + textCount * 0.03, 0.95);
-  if (hasOgType)  return Math.min(0.72 + textCount * 0.04, 0.90);
-  return Math.min(0.45 + textCount * 0.06, 0.80);
+function scoreToConfidence(score: number, primaryHint: string): number {
+  if (primaryHint === "WebPage" || score === 0) return 0.20;
+  if (score < 45) return 0.20 + score * 0.005;
+  // Linear ramp: 45 → 0.45, ~200 → 0.95, capped at 0.95
+  return Math.min(0.45 + (score - 45) / 200, 0.95);
 }

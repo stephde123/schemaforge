@@ -36,6 +36,12 @@ const WpSignalsSchema = z.object({
     publishedAt:   z.string().optional(),
     modifiedAt:    z.string().optional(),
   }).optional(),
+  seo: z.object({
+    title:       z.string().optional(),
+    description: z.string().optional(),
+    canonical:   z.string().optional(),
+    plugin:      z.string().optional(),
+  }).optional(),
   taxonomy: z.object({
     categories: z.array(z.string()).optional(),
     tags:       z.array(z.string()).optional(),
@@ -48,6 +54,14 @@ const WpSignalsSchema = z.object({
     logo:        z.string().optional(),
   }).optional(),
   meta: z.record(z.unknown()).optional(),
+  blocks: z.array(z.object({
+    name:      z.string(),
+    ordered:   z.boolean().optional(),
+    items:     z.array(z.string()).optional(),
+    faqItems:  z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+    url:       z.string().optional(),
+    alt:       z.string().optional(),
+  })).optional(),
   woocommerce: z.object({
     sku:          z.string().optional(),
     price:        z.string().optional(),
@@ -58,6 +72,51 @@ const WpSignalsSchema = z.object({
     weight:       z.string().optional(),
     dimensions:   z.object({ length: z.string().optional(), width: z.string().optional(), height: z.string().optional() }).optional(),
     categories:   z.array(z.string()).optional(),
+  }).optional(),
+  events: z.object({
+    startDate:  z.string().optional(),
+    endDate:    z.string().optional(),
+    timezone:   z.string().optional(),
+    venue: z.object({
+      name: z.string().optional(), address: z.string().optional(), city: z.string().optional(),
+      zip: z.string().optional(), country: z.string().optional(), phone: z.string().optional(), url: z.string().optional(),
+    }).optional(),
+    organizer: z.object({
+      name: z.string().optional(), email: z.string().optional(), url: z.string().optional(), phone: z.string().optional(),
+    }).optional(),
+    ticketUrl: z.string().optional(),
+    cost:      z.string().optional(),
+    status:    z.string().optional(),
+    allDay:    z.boolean().optional(),
+  }).optional(),
+  courses: z.object({
+    price:       z.string().optional(),
+    currency:    z.string().optional(),
+    duration:    z.string().optional(),
+    level:       z.string().optional(),
+    instructor:  z.string().optional(),
+    maxStudents: z.string().optional(),
+  }).optional(),
+  jobs: z.object({
+    jobType:    z.string().optional(),
+    location:   z.string().optional(),
+    salary:     z.string().optional(),
+    company:    z.string().optional(),
+    companyUrl: z.string().optional(),
+    applyUrl:   z.string().optional(),
+    remote:     z.boolean().optional(),
+    expiryDate: z.string().optional(),
+  }).optional(),
+  edd: z.object({
+    price:            z.string().optional(),
+    currency:         z.string().optional(),
+    downloadCategory: z.array(z.string()).optional(),
+    downloadTag:      z.array(z.string()).optional(),
+  }).optional(),
+  ratings: z.object({
+    average: z.number().optional(),
+    count:   z.number().optional(),
+    source:  z.string().optional(),
   }).optional(),
 }).optional();
 
@@ -191,6 +250,7 @@ async function main() {
         // Top-level aliases for convenience
         coverageScore: result.validation.coverageScore,
         classificationConfidence: result.classificationConfidence,
+        detectionSignals: result.detectionSignals,
         jsonld: result.jsonld,
         scriptTag: toScriptTag(result.jsonld),
       });

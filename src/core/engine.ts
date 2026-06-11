@@ -143,6 +143,7 @@ export class Engine {
       recommendation: recommend(detection),
       usedMode: (classifyLlmUsed || extractLlmUsed) ? "llm" : "deterministic",
       classificationConfidence: classification.confidence,
+      detectionSignals: classification.signals,
     };
   }
 }

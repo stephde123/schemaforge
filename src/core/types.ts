@@ -228,6 +228,8 @@ export interface PipelineResult {
   usedMode: "llm" | "deterministic";
   /** 0–1: how confident the classifier is about the detected primary page type. */
   classificationConfidence: number;
+  /** Evidence signals that led to the classification (e.g. "wpsig:woocommerce", "url:/product/"). */
+  detectionSignals: string[];
 }
 
 /** Caller-supplied context hints (e.g. from the WordPress companion plugin). */

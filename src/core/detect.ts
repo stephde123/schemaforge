@@ -33,13 +33,9 @@ export function detect(html?: string): DetectionResult {
     }
   });
 
-  // --- Microdata (presence only for v1) ---
-  if ($("[itemscope]").length > 0) {
-    existing.push({
-      format: "microdata",
-      data: { itemscopeCount: $("[itemscope]").length },
-      plugin: "unknown",
-    });
+  // --- Microdata (extract itemprop values from each itemscope element) ---
+  for (const item of extractMicrodataItems($)) {
+    existing.push(item);
   }
 
   // --- RDFa (presence only for v1) ---
@@ -55,6 +51,46 @@ export function detect(html?: string): DetectionResult {
     detectedPlugins: [...plugins],
     hasExistingMarkup: existing.length > 0,
   };
+}
+
+function extractMicrodataItems($: cheerio.CheerioAPI): ExistingMarkupItem[] {
+  const items: ExistingMarkupItem[] = [];
+
+  // Process only top-level [itemscope] elements (skip elements nested inside another itemscope)
+  for (const root of $("[itemscope]").not("[itemscope] [itemscope]").toArray()) {
+    const $root = $(root);
+    const itemtype = $root.attr("itemtype") ?? "";
+    const typeMatch = itemtype.match(/schema\.org\/(\w+)/);
+    if (!typeMatch) continue;
+
+    const data: Record<string, unknown> = { "@type": typeMatch[1] };
+
+    // Collect itemprop descendants that are NOT inside a nested itemscope
+    for (const el of $root.find("[itemprop]").toArray()) {
+      if ($(el).parentsUntil($root, "[itemscope]").length > 0) continue;
+
+      const $el  = $(el);
+      const prop = $el.attr("itemprop");
+      if (!prop) continue;
+
+      const tag = (el as unknown as { tagName?: string }).tagName?.toLowerCase() ?? "";
+      let val: string | undefined;
+      if (tag === "meta")       val = $el.attr("content");
+      else if (tag === "link")  val = $el.attr("href");
+      else if (tag === "a")     val = $el.attr("href") ?? $el.text().trim();
+      else if (tag === "img")   val = $el.attr("src");
+      else if (tag === "time")  val = $el.attr("datetime") ?? $el.text().trim();
+      else                      val = $el.text().trim() || undefined;
+
+      if (val) data[prop] = val;
+    }
+
+    if (Object.keys(data).length > 1) {
+      items.push({ format: "microdata", data, plugin: "unknown" });
+    }
+  }
+
+  return items;
 }
 
 function fingerprintJsonLd(

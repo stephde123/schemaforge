@@ -571,13 +571,13 @@ function extractPricingOffers($: cheerio.CheerioAPI): OfferProps[] {
     let currency = "USD";
 
     // Pass 1: look for a text node (or very shallow element) that already contains currency + digits together
-    $el.find("*").each((_, child) => {
+    for (const child of $el.find("*").toArray()) {
       const t = $(child).text().trim();
       if (/[€$£]\s*\d{2,}|\d{2,}\s*[€$£]|\d{2,}\s*(EUR|USD|GBP)\b/i.test(t) && t.length < 40) {
         priceText = t;
-        return false as any;
+        break;
       }
-    });
+    }
     // Pass 2: currency symbol and digits may live in adjacent sibling spans — use full element text
     if (!priceText) {
       priceText = fullText;
@@ -878,7 +878,8 @@ function extractPostalAddress($: cheerio.CheerioAPI): Record<string, unknown> | 
   let addressLocality: string | undefined;
   let addressCountry: string | undefined;
 
-  $("footer p, address, [class*='footer'] p, [class*='contact'] p, [class*='address'] p").each((_, el) => {
+  const addrEls = $("footer p, address, [class*='footer'] p, [class*='contact'] p, [class*='address'] p").toArray();
+  outer: for (const el of addrEls) {
     const lines = ($(el).html() || "")
       .split(/<br\s*\/?>/i)
       .map((l) => l.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&[a-z#0-9]+;/gi, " ").trim())
@@ -893,7 +894,7 @@ function extractPostalAddress($: cheerio.CheerioAPI): Record<string, unknown> | 
         addressLocality = plz[2]?.trim();
         addressCountry = "DE";
         if (i > 0) streetAddress = lines[i - 1];
-        return false as any; // break cheerio.each
+        break outer;
       }
       // US/CA ZIP: "Springfield, IL 62701" or "62701"
       const zip = line.match(/,\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
@@ -902,10 +903,10 @@ function extractPostalAddress($: cheerio.CheerioAPI): Record<string, unknown> | 
         addressLocality = line.replace(zip[0], "").trim();
         addressCountry = "US";
         if (i > 0) streetAddress = lines[i - 1];
-        return false as any;
+        break outer;
       }
     }
-  });
+  }
 
   if (!postalCode && !streetAddress && !addressLocality) return undefined;
   return pruneEmpty({
