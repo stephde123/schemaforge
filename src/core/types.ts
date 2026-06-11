@@ -5,6 +5,47 @@
 export type EntitySource = "deterministic" | "llm" | "existing" | "manual";
 
 /**
+ * Structured data collected directly from the WordPress CMS before the request
+ * is sent to the API server. These values are authoritative — the LLM should
+ * prefer them over anything inferred from scraped HTML.
+ */
+export interface WpSignals {
+  post?: {
+    type?: string;           // WP post_type: "post", "page", "product", "tribe_events", …
+    title?: string;
+    excerpt?: string;
+    author?: { name?: string; bio?: string; url?: string };
+    featuredImage?: { url?: string; alt?: string };
+    publishedAt?: string;    // ISO 8601
+    modifiedAt?: string;
+  };
+  taxonomy?: {
+    categories?: string[];
+    tags?: string[];
+    custom?: Record<string, string[]>;   // e.g. { "product_cat": ["Shirts", "Sale"] }
+  };
+  site?: {
+    name?: string;
+    description?: string;
+    url?: string;
+    logo?: string;
+  };
+  /** Non-private post meta keys (no leading underscore). Values truncated to 300 chars. */
+  meta?: Record<string, unknown>;
+  woocommerce?: {
+    sku?: string;
+    price?: string;
+    regularPrice?: string;
+    salePrice?: string;
+    currency?: string;
+    availability?: string;   // "InStock" | "OutOfStock"
+    weight?: string;
+    dimensions?: { length?: string; width?: string; height?: string };
+    categories?: string[];
+  };
+}
+
+/**
  * An internal representation of a schema.org node before it is serialized to
  * JSON-LD. We keep `type` and `props` separate from the final `@id` so that
  * reconciliation can assign/merge ids late.
@@ -36,6 +77,13 @@ export interface NormalizedInput {
   sourceUrl?: string;
   /** Raw HTML, if any. */
   html?: string;
+  /**
+   * Cleaned HTML for LLM consumption: noise elements removed, non-semantic
+   * attributes stripped, but all structural/semantic tags preserved.
+   * Prefer this over `text` when sending to an LLM — the tag structure
+   * (headings, lists, tables, details/summary, …) adds extraction signal.
+   */
+  cleanedHtml?: string;
   /** Plain text extracted from HTML, plus any user-supplied extra text. */
   text: string;
   /** Detected primary language (BCP-47), e.g. "de". */
@@ -44,6 +92,8 @@ export interface NormalizedInput {
   title?: string;
   /** Raw extra text supplied by the user — kept separate so LLM can treat it as binding instructions. */
   userInstructions?: string;
+  /** Authoritative CMS data supplied by the WordPress companion plugin. */
+  wpSignals?: WpSignals;
 }
 
 export type SchemaPlugin =
@@ -99,6 +149,8 @@ export interface PipelineResult {
   recommendation: "add" | "merge" | "replace" | "none";
   /** Whether the LLM was actually invoked and succeeded, or only deterministic rules ran. */
   usedMode: "llm" | "deterministic";
+  /** 0–1: how confident the classifier is about the detected primary page type. */
+  classificationConfidence: number;
 }
 
 /** Caller-supplied context hints (e.g. from the WordPress companion plugin). */

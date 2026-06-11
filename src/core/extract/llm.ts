@@ -46,10 +46,29 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - Choose the MOST SPECIFIC subtype available (e.g. Dentist over LocalBusiness, SoftwareApplication over WebPage for a software features page).
 - Emit MULTIPLE entities when the page contains multiple distinct concepts (e.g. a software features page may need: SoftwareApplication + ItemList of features + Organization + WebPage).
 - Only use properties listed in validPropertiesPerType. Do NOT invent property names.
-- STRICT EXTRACTION ONLY: every value you emit must be explicitly present in the page text. Do NOT generate, guess, or infer URLs, email addresses, phone numbers, social media handles, identifiers, or any other data that is not literally written on the page. If a piece of information is not on the page, omit the property entirely.
+- STRICT EXTRACTION ONLY: every value you emit must be explicitly present in the page content. Do NOT generate, guess, or infer URLs, email addresses, phone numbers, social media handles, identifiers, or any other data that is not literally written on the page. If a piece of information is not on the page, omit the property entirely.
 - Do NOT emit sameAs under any circumstances — not for people, organizations, places, or any other entity type.
 - Link entities by "@id" reference rather than deep nesting when the target entity is already in the graph.
 - Output STRICT JSON: {"entities": [...]} where each element has "@type" plus properties. No markdown, no prose.
+
+## CMS signals (wpSignals — highest priority)
+When a wpSignals object is present in the input, it comes directly from WordPress and is authoritative.
+Prefer it over anything inferred from the page content. Do NOT omit or contradict these values:
+- post.title         → primary entity name / Article.headline
+- post.excerpt       → description
+- post.author        → emit a Person entity (name, bio→description, url)
+- post.featuredImage → ImageObject / primaryImageOfPage (url, alt→caption)
+- post.publishedAt / modifiedAt → datePublished / dateModified (already ISO 8601)
+- post.type          → strong schema hint ("product"→Product, "tribe_events"→Event, "job_listing"→JobPosting)
+- taxonomy.categories / tags → about, keywords, or genre on the primary entity
+- taxonomy.custom    → check key name for semantic meaning (e.g. "pa_color" → color attribute)
+- site.name / url    → WebSite entity (name, url)
+- site.logo          → Organization.logo as ImageObject
+- meta.*             → scan key names for schema.org hints (e.g. "event_start_date"→startDate, "venue_name"→location.name)
+- woocommerce.sku    → Product.sku
+- woocommerce.price / currency / availability → Product.offers (Offer with price, priceCurrency, availability)
+- woocommerce.regularPrice / salePrice → include in priceSpecification when both are present
+- woocommerce.weight / dimensions → Product.weight / hasMeasurement
 
 ## What to look for per page type
 
@@ -153,11 +172,16 @@ function buildUserPrompt(
             userInstruction: `MANDATORY: The user explicitly instructed: "${input.userInstructions}". This overrides any other judgment. Follow it exactly.`,
           }
         : {}),
+      // Authoritative CMS data — treat as ground truth (see SYSTEM_PROMPT for mapping rules)
+      ...(input.wpSignals ? { wpSignals: input.wpSignals } : {}),
       page: {
         url: input.canonicalUrl || input.sourceUrl,
         title: input.title,
         lang: input.lang,
-        text: input.text.slice(0, 20000),
+        // Cleaned HTML preserves heading hierarchy, lists, tables, details/summary
+        // and other structural signals that plain text loses. Fall back to plain
+        // text when no HTML was available (text-only input).
+        content: (input.cleanedHtml ?? input.text).slice(0, 24000),
       },
       pageClassification: classification
         ? {
@@ -181,8 +205,8 @@ function buildUserPrompt(
       candidateTypes,
       validPropertiesPerType: propertyHints,
       instruction: input.userInstructions
-        ? 'The userInstruction field contains a MANDATORY directive from the user — execute it first, then analyze the full page text and emit ALL relevant entities. Return {"entities": [...]}.'
-        : 'Analyze the full page text. Emit ALL relevant entities for this page. Return {"entities": [...]} with the most specific types and ALL relevant valid properties filled in. Be comprehensive.',
+        ? 'The userInstruction field contains a MANDATORY directive from the user — execute it first, then analyze the full page content and emit ALL relevant entities. Return {"entities": [...]}.'
+        : 'Analyze the full page content. Emit ALL relevant entities for this page. Return {"entities": [...]} with the most specific types and ALL relevant valid properties filled in. Be comprehensive.',
     },
     null,
     2,

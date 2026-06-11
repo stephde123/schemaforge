@@ -4,6 +4,8 @@ export interface PageClassification {
   primaryHint: string;
   additionalHints: string[];
   signals: string[];
+  /** 0–1: how confident we are about primaryHint. */
+  confidence: number;
 }
 
 /**
@@ -408,5 +410,17 @@ export function classifyPage(input: NormalizedInput): PageClassification {
     primaryHint,
     additionalHints: [...additional],
     signals,
+    confidence: computeHeuristicConfidence(primaryHint, signals),
   };
+}
+
+function computeHeuristicConfidence(primaryHint: string, signals: string[]): number {
+  if (primaryHint === "WebPage") return 0.20;
+  const hasUrlRule = signals.some((s) => s.startsWith("url:"));
+  const hasOgType  = signals.some((s) => s.startsWith("og:type="));
+  // Additional corroborating text/HTML signals beyond the primary matcher
+  const textCount  = signals.filter((s) => !s.startsWith("url:") && !s.startsWith("og:")).length;
+  if (hasUrlRule) return Math.min(0.85 + textCount * 0.03, 0.95);
+  if (hasOgType)  return Math.min(0.72 + textCount * 0.04, 0.90);
+  return Math.min(0.45 + textCount * 0.06, 0.80);
 }

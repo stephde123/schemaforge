@@ -139,29 +139,24 @@ export function deterministicExtract(
     }
   }
 
-  // 7) FAQ extraction — also check page text for FAQ sections regardless of primary hint
-  const hasFaq =
-    hint === "FAQPage" ||
-    classification?.additionalHints.includes("FAQPage") ||
-    classification?.signals.includes("faq-content");
-  if (hasFaq) {
-    const qaPairs = extractFaqItems($);
-    if (qaPairs.length >= 2) {
-      entities.push({
-        type: "FAQPage",
-        props: {
-          mainEntity: qaPairs.map((qa) => ({
-            "@type": "Question",
-            name: qa.question,
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: qa.answer,
-            },
-          })),
-        },
-        _source: "deterministic",
-      });
-    }
+  // 7) FAQ extraction — always runs; structural patterns (microdata, class-based,
+  //    details/accordion) are precise enough to fire without a classification hint.
+  const qaPairs = extractFaqItems($);
+  if (qaPairs.length >= 2) {
+    entities.push({
+      type: "FAQPage",
+      props: {
+        mainEntity: qaPairs.map((qa) => ({
+          "@type": "Question",
+          name: qa.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: qa.answer,
+          },
+        })),
+      },
+      _source: "deterministic",
+    });
   }
 
   // 8) Article signals (author, datePublished)
@@ -458,12 +453,14 @@ function extractFaqItems($: cheerio.CheerioAPI): QaPair[] {
     });
   }
 
-  // Last resort: any h3/h4 that ends with "?" followed by a paragraph
+  // Last resort: h3/h4 ending with "?" followed by a substantive paragraph.
+  // Requires answer ≥ 30 chars to avoid junk <p> neighbours on non-FAQ pages.
   if (pairs.length < 2) {
     $("h3, h4").each((_, el) => {
       const q = $(el).text().trim();
       if (!q.endsWith("?")) return;
       const a = $(el).next("p, div").first().text().trim();
+      if (a.length < 30) return;
       addPair(q, a);
     });
   }

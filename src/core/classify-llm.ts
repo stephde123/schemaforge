@@ -39,7 +39,7 @@ export async function llmClassifyPage(
     return classifyPage(input);
   }
 
-  const types = parseTypeArray(raw);
+  const { types, confidence } = parseClassifyResponse(raw);
   if (!types.length) return classifyPage(input);
 
   // Filter to types that actually exist in the schema.org brain
@@ -50,6 +50,7 @@ export async function llmClassifyPage(
     primaryHint: valid[0]!,
     additionalHints: valid.slice(1),
     signals: ["llm-type-selector", ...valid.map((t) => `llm:${t}`)],
+    confidence,
   };
 }
 
@@ -59,11 +60,13 @@ export async function llmClassifyPage(
 // ---------------------------------------------------------------------------
 
 let _cachedSystem: string | null = null;
-let _cachedBrainKey: string | null = null; // invalidate if brain is reloaded
+let _cachedBrainKey: string | null = null;
+
+// Bump this when the prompt format changes to bust the module-level cache.
+const CLASSIFIER_VERSION = "v2";
 
 function buildSystemPrompt(brain: SchemaBrain): string {
-  // Use a simple cache key: number of types (changes only when schema dump is updated)
-  const key = String(brain.allTypes().length);
+  const key = CLASSIFIER_VERSION + ":" + String(brain.allTypes().length);
   if (_cachedSystem && _cachedBrainKey === key) return _cachedSystem;
 
   // Only include uppercase-starting types — lowercase entries are data types
@@ -75,14 +78,18 @@ function buildSystemPrompt(brain: SchemaBrain): string {
     .join(", ");
 
   _cachedSystem = `You are a schema.org type classifier.
-Given a web page URL, title, and a short text excerpt, return a JSON array of 2–8 schema.org types that best describe the page's PRIMARY content.
+Given a web page URL, title, and a short text excerpt, identify the 2–8 schema.org types that best describe the page's PRIMARY content.
 
 Rules:
 - Always pick the MOST SPECIFIC subtype available (CatholicChurch > Church > PlaceOfWorship > LocalBusiness).
 - Include parallel types that add genuine structured-data value (historic church → ["CatholicChurch", "TouristAttraction", "LandmarksOrHistoricalBuildings"]).
 - Omit abstract parents already implied by a specific child in your list (no "LocalBusiness" if "Restaurant" is already there).
 - Omit page-infrastructure types: WebPage, WebSite, BreadcrumbList, SiteNavigationElement.
-- Output ONLY a valid JSON array. No explanation, no code fences, no prose.
+- Output ONLY a valid JSON object with exactly two fields:
+  {"types": ["Type1", "Type2", ...], "confidence": 0.0}
+  where "confidence" is a float 0.0–1.0 reflecting how unambiguously the page type is identifiable
+  (1.0 = crystal-clear, 0.5 = genuinely ambiguous, 0.2 = almost no signal).
+  No explanation, no code fences, no prose — just the JSON object.
 
 Available schema.org types:
 ${allTypes}`;
@@ -92,23 +99,45 @@ ${allTypes}`;
 }
 
 // ---------------------------------------------------------------------------
-// Parse the LLM response into a string array
+// Parse the LLM response — handles new {"types":[…],"confidence":0.9} format
+// and falls back to a plain array for backward compatibility.
 // ---------------------------------------------------------------------------
 
-function parseTypeArray(raw: string): string[] {
+function parseClassifyResponse(raw: string): { types: string[]; confidence: number } {
   const cleaned = raw.replace(/```(?:json)?/gi, "").trim();
-  // Try direct JSON parse first
+  const toStrings = (arr: unknown) =>
+    Array.isArray(arr) ? arr.filter((t): t is string => typeof t === "string") : [];
+  const clampConf = (n: unknown) =>
+    typeof n === "number" ? Math.min(1, Math.max(0, n)) : 0.85;
+
   try {
     const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed)) return parsed.filter((t): t is string => typeof t === "string");
+    // New format: { types: [...], confidence: 0.9 }
+    if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.types)) {
+      return { types: toStrings(parsed.types), confidence: clampConf(parsed.confidence) };
+    }
+    // Backward compat: plain array
+    if (Array.isArray(parsed)) {
+      return { types: toStrings(parsed), confidence: 0.85 };
+    }
   } catch {}
-  // Fall back to extracting the first [...] block
-  const m = cleaned.match(/\[[\s\S]*?\]/);
-  if (m) {
+
+  // Fall back: extract first {...} or [...] block
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) {
     try {
-      const parsed = JSON.parse(m[0]);
-      if (Array.isArray(parsed)) return parsed.filter((t): t is string => typeof t === "string");
+      const parsed = JSON.parse(objMatch[0]);
+      if (parsed && Array.isArray(parsed.types)) {
+        return { types: toStrings(parsed.types), confidence: clampConf(parsed.confidence) };
+      }
     } catch {}
   }
-  return [];
+  const arrMatch = cleaned.match(/\[[\s\S]*?\]/);
+  if (arrMatch) {
+    try {
+      const parsed = JSON.parse(arrMatch[0]);
+      if (Array.isArray(parsed)) return { types: toStrings(parsed), confidence: 0.85 };
+    } catch {}
+  }
+  return { types: [], confidence: 0 };
 }

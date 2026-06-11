@@ -142,6 +142,7 @@ export class Engine {
       validation,
       recommendation: recommend(detection),
       usedMode: (classifyLlmUsed || extractLlmUsed) ? "llm" : "deterministic",
+      classificationConfidence: classification.confidence,
     };
   }
 }

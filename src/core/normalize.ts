@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { Config } from "./config.js";
-import type { NormalizedInput } from "./types.js";
+import type { NormalizedInput, WpSignals } from "./types.js";
 
 export interface NormalizeRequest {
   url?: string;
@@ -8,6 +8,8 @@ export interface NormalizeRequest {
   extraText?: string;
   /** Caller-supplied language override (BCP-47). Takes precedence over HTML lang detection. */
   langOverride?: string;
+  /** Authoritative CMS data from the WordPress companion plugin. */
+  wpSignals?: WpSignals;
 }
 
 /**
@@ -51,13 +53,97 @@ export async function normalize(
     $("title").first().text().trim() ||
     $("h1").first().text().trim();
 
-  // Strip noise, keep readable text.
+  // Cleaned HTML for LLM (separate Cheerio instance — does not affect the $ below).
+  const cleanedHtml = buildCleanedHtml(html);
+
+  // Plain text for classification excerpts and fallback.
   $("script, style, noscript, template, svg").remove();
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
   const userInstructions = req.extraText?.trim() || undefined;
   const text = [bodyText, userInstructions].filter(Boolean).join("\n\n");
 
-  return { canonicalUrl, sourceUrl, html, text, lang, title, userInstructions };
+  return { canonicalUrl, sourceUrl, html, cleanedHtml, text, lang, title, userInstructions, wpSignals: req.wpSignals };
+}
+
+// ---------------------------------------------------------------------------
+// HTML cleaner
+// ---------------------------------------------------------------------------
+
+/**
+ * Attributes with genuine semantic value for schema.org extraction.
+ * Everything else (class, id, style, data-*, event handlers, …) is stripped
+ * to reduce token volume without sacrificing extraction quality.
+ *
+ * Kept attributes — rationale:
+ *   href          → URL of links (sameAs, url, contactPoint targets)
+ *   src           → media/image URL (ImageObject, VideoObject, AudioObject)
+ *   alt           → image description (name/caption fallback)
+ *   poster        → video thumbnail URL (VideoObject.thumbnailUrl)
+ *   datetime      → machine-readable date on <time> (datePublished etc.)
+ *   title         → tooltip/title text on any element
+ *   lang          → language override on a subtree
+ *   role          → ARIA landmark roles (navigation, article, main …)
+ *   aria-label    → accessible label text (often better than visible text)
+ *   itemprop      → Microdata property name  ─┐
+ *   itemscope     → Microdata scope boundary  │ schema.org Microdata
+ *   itemtype      → Microdata type URL        ─┘
+ *   property      → RDFa property name        ─┐
+ *   typeof        → RDFa type URI              │ RDFa
+ *   content       → RDFa / <meta> machine value─┘
+ *   name          → <meta name="description|author|…">
+ *   rel           → link relationship (canonical, nofollow, author …)
+ *   kind          → <track kind="subtitles|captions|descriptions">
+ *   label         → <track label="Deutsch"> / <optgroup label>
+ *   scope         → <th scope="col|row"> — table header semantics
+ *   colspan       → table cell span — preserves table structure for LLM
+ *   rowspan       → table cell span
+ *   type          → <input type>, <link type>, keeps JSON-LD script[type]
+ */
+const SEMANTIC_ATTRS = new Set([
+  "href", "src", "alt", "poster",
+  "datetime",
+  "title", "lang", "role", "aria-label",
+  "itemprop", "itemscope", "itemtype",
+  "property", "typeof", "content",
+  "name", "rel",
+  "kind", "label",
+  "scope", "colspan", "rowspan",
+  "type",
+]);
+
+/**
+ * Returns a cleaned HTML string suitable for LLM consumption.
+ *
+ * Removes:  <style>, <script> (except JSON-LD), <noscript>, <template>,
+ *           <canvas>, <iframe>, <map>, <area>, <svg>, HTML comments.
+ * Keeps:    <video>, <audio> and their children (<source>, <track>) —
+ *           these carry schema.org VideoObject / AudioObject signals.
+ * Strips:   all attributes NOT in SEMANTIC_ATTRS (class, id, style,
+ *           data-*, event handlers, srcset, loading, …).
+ * Preserves all structural / semantic elements untouched (headings, lists,
+ *           tables, nav, details/summary, figure, address, time, …).
+ */
+function buildCleanedHtml(rawHtml: string): string {
+  const $ = cheerio.load(rawHtml);
+
+  // Remove elements that add zero extraction value
+  $("style, noscript, template, canvas, iframe, map, area, svg").remove();
+  // Keep JSON-LD <script> tags — they let the LLM see what is already declared.
+  $("script:not([type='application/ld+json'])").remove();
+
+  // Strip non-semantic attributes from every element
+  $("*").each((_, node) => {
+    if (node.type !== "tag") return;
+    const attribs = (node as unknown as { attribs: Record<string, string> }).attribs;
+    for (const attr of Object.keys(attribs)) {
+      if (!SEMANTIC_ATTRS.has(attr)) delete attribs[attr];
+    }
+  });
+
+  return ($("body").html() ?? "")
+    .replace(/<!--[\s\S]*?-->/g, "")  // strip HTML comments
+    .replace(/[ \t]{2,}/g, " ")       // collapse inline whitespace
+    .trim();
 }
 
 async function fetchHtml(url: string, cfg: Config): Promise<string> {

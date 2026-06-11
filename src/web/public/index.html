@@ -663,11 +663,20 @@
 
       const v = data.validation;
       const scorePercent = Math.round((v.coverageScore || 0) * 100);
+      const confPercent  = data.classificationConfidence != null
+        ? Math.round(data.classificationConfidence * 100) : null;
+      const confColor = confPercent == null ? "var(--muted)"
+        : confPercent >= 80 ? "var(--accent)"
+        : confPercent >= 50 ? "var(--warn)"
+        : "var(--err)";
       const items = v.issues.map(i =>
         `<li class="lvl-${i.level}">[${i.level}]${i.subject ? " " + escHtml(i.subject) + ":" : ""} ${escHtml(i.message)}</li>`
       ).join("");
       $("validation").innerHTML =
-        `<div class="cov">Coverage-Score: <b>${scorePercent}%</b></div>` +
+        `<div class="cov">` +
+        `Coverage-Score: <b>${scorePercent}%</b>` +
+        (confPercent != null ? `<span style="color:var(--muted);margin:0 8px">·</span>Typ-Confidence: <b style="color:${confColor}">${confPercent}%</b>` : "") +
+        `</div>` +
         (items ? `<ul class="issues">${items}</ul>` : `<div class="meta">Keine Probleme gefunden.</div>`);
       $("validation").style.display = "block";
 
