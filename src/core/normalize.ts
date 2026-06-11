@@ -146,7 +146,45 @@ function buildCleanedHtml(rawHtml: string): string {
     .trim();
 }
 
+// Patterns for private/reserved IPv4 ranges (RFC 1918, loopback, link-local).
+const PRIVATE_IPV4_RE = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+];
+
+// Reject URLs that point at loopback or private network addresses to prevent SSRF.
+// Note: redirect-based SSRF (redirect from public → private URL) is not covered here;
+// for full protection, resolve the hostname and check the resulting IP before each hop.
+function assertSafeUrl(rawUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid URL: ${rawUrl}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`Protocol not allowed: ${parsed.protocol}`);
+  }
+  // URL.hostname includes brackets for IPv6 literals: [::1] — strip them.
+  const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+    throw new Error("SSRF blocked: loopback address");
+  }
+  if (PRIVATE_IPV4_RE.some((re) => re.test(host))) {
+    throw new Error("SSRF blocked: private IPv4 range");
+  }
+  // IPv6 ULA (fc00::/7) and link-local (fe80::/10)
+  if (/^fe80/i.test(host) || /^f[cd]/i.test(host)) {
+    throw new Error("SSRF blocked: private IPv6 range");
+  }
+}
+
 async function fetchHtml(url: string, cfg: Config): Promise<string> {
+  assertSafeUrl(url);
   const res = await fetch(url, {
     headers: { "User-Agent": cfg.fetchUserAgent, Accept: "text/html,*/*" },
     redirect: "follow",

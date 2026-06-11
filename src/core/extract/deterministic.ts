@@ -296,6 +296,23 @@ function detectAppCategory($: cheerio.CheerioAPI, text: string): string | undefi
 // Pricing helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Parse a price string that may use European (1.299,00) or English (1,299.00)
+ * conventions. Returns NaN when the string cannot be parsed.
+ */
+function parseLocaleNumber(s: string): number {
+  const clean = s.replace(/[^\d.,]/g, "");
+  if (!clean) return NaN;
+  const lastComma = clean.lastIndexOf(",");
+  const lastDot   = clean.lastIndexOf(".");
+  if (lastComma > lastDot) {
+    // European: 1.299,00 → strip dots, replace comma with dot
+    return parseFloat(clean.replace(/\./g, "").replace(",", "."));
+  }
+  // English: 1,299.00 → strip commas
+  return parseFloat(clean.replace(/,/g, ""));
+}
+
 type OfferProps = Record<string, unknown> & {
   name?: string;
   price?: string;
@@ -352,11 +369,10 @@ function extractPricingOffers($: cheerio.CheerioAPI): OfferProps[] {
     let rawPrice: string | undefined;
     if (priceMatch) {
       const sym = (priceMatch[1] || priceMatch[2]) ?? "";
-      rawPrice = ((priceMatch[2] || priceMatch[1]) ?? "").replace(",", "");
-      // Reject implausible prices (e.g. year numbers, zip codes)
-      const num = parseFloat(rawPrice);
-      if (num < 1 || num > 100000) rawPrice = undefined;
-      if (rawPrice) {
+      const num = parseLocaleNumber((priceMatch[2] || priceMatch[1]) ?? "");
+      if (!isNaN(num) && num >= 1 && num <= 100_000) {
+        // Normalize to a plain decimal string for schema.org Offer.price
+        rawPrice = num % 1 === 0 ? String(num) : num.toFixed(2);
         currency = /€|EUR/i.test(sym) ? "EUR" : /£|GBP/i.test(sym) ? "GBP" : "USD";
       }
     }
