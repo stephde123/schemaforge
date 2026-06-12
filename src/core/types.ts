@@ -120,6 +120,19 @@ export interface WpSignals {
     count?: number;
     source?: string;
   };
+  /** Business Directory Plugin (WPBDP) listing data. */
+  localBusiness?: {
+    categories?: string[];
+    phone?: string;
+    email?: string;
+    website?: string;
+    address?: string;
+    city?: string;
+    zip?: string;
+    country?: string;
+    openingHours?: string;
+    priceRange?: string;
+  };
 }
 
 /**

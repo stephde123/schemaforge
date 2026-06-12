@@ -205,6 +205,32 @@ function extractFromWpSignals(input: NormalizedInput): Entity[] {
     });
   }
 
+  // Business Directory Plugin (WPBDP) → LocalBusiness
+  if (sig.localBusiness || sig.post?.type === "wpbdp_listing") {
+    const lb = sig.localBusiness ?? {};
+    entities.push({
+      type: "LocalBusiness",
+      props: pruneEmpty({
+        name: sig.post?.title,
+        description: sig.seo?.description ?? sig.post?.excerpt,
+        image: sig.post?.featuredImage?.url,
+        url: lb.website,
+        telephone: lb.phone,
+        email: lb.email,
+        priceRange: lb.priceRange,
+        openingHours: lb.openingHours,
+        address: (lb.address || lb.city) ? pruneEmpty({
+          "@type": "PostalAddress",
+          streetAddress: lb.address,
+          addressLocality: lb.city,
+          postalCode: lb.zip,
+          addressCountry: lb.country,
+        }) : undefined,
+      }),
+      _source: "deterministic",
+    });
+  }
+
   // Rating plugins → AggregateRating
   if (sig.ratings?.average != null) {
     entities.push({

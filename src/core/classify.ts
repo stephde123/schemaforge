@@ -283,6 +283,7 @@ export function classifyPage(input: NormalizedInput): PageClassification {
     v("Course", 70); addSignal("wpsig:post_type=course");
   }
   else if (postType === "post")                                                  { v("BlogPosting", 30);          addSignal("wpsig:post_type=post"); }
+  else if (postType === "wpbdp_listing")                                        { v("LocalBusiness", 70);        addSignal("wpsig:post_type=wpbdp_listing"); }
 
   if (sig?.blocks?.some(b => (b.faqItems?.length ?? 0) >= 2)) {
     v("FAQPage", 40); addSignal("wpsig:faq_blocks");

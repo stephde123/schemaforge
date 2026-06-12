@@ -118,6 +118,18 @@ const WpSignalsSchema = z.object({
     count:   z.number().optional(),
     source:  z.string().optional(),
   }).optional(),
+  localBusiness: z.object({
+    categories:   z.array(z.string()).optional(),
+    phone:        z.string().optional(),
+    email:        z.string().optional(),
+    website:      z.string().optional(),
+    address:      z.string().optional(),
+    city:         z.string().optional(),
+    zip:          z.string().optional(),
+    country:      z.string().optional(),
+    openingHours: z.string().optional(),
+    priceRange:   z.string().optional(),
+  }).optional(),
 }).optional();
 
 const RunSchema = z.object({
