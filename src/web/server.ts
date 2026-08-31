@@ -212,7 +212,16 @@ async function main() {
     res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION, runCount: engine.getRunCount() });
   });
 
-  app.delete("/api/registry", requireSession, async (_req, res) => {
+  app.delete("/api/registry", requireSession, async (req, res) => {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (q) {
+      const removed = await engine.pruneRegistry(q);
+      return res.json({
+        ok: true,
+        removed,
+        message: `Removed ${removed} registry entr${removed === 1 ? "y" : "ies"} matching "${q}".`,
+      });
+    }
     await engine.clearRegistry();
     res.json({ ok: true, message: "Registry cleared." });
   });

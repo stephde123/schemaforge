@@ -40,7 +40,7 @@ src/
     validate.ts       # Coverage-Score + missingRequired
     serialize.ts      # toJsonLd() + toScriptTag()
     schema-brain.ts   # Lädt schemaorg-current-https.jsonld, cached
-    registry.ts       # JsonRegistry: key → {id, type, name, firstSeen, lastSeen} in data/registry.json
+    registry.ts       # JsonRegistry: key → {id, type, name, …} in data/registry.json (v2-Format, atomarer Write, TTL/GC)
     extract/
       deterministic.ts  # Regex/Cheerio-Extraktion ohne LLM
       llm.ts            # LLM-Tiefen-Extraktion (Entity-Filling)
@@ -70,7 +70,7 @@ data/
 | GET | `/api/me` | Session | Prüft ob Session gültig |
 | POST | `/api/generate` | optional | Hauptendpoint: erzeugt JSON-LD |
 | GET | `/api/registry/stats` | Session | Registry-Inhalt, filterbar per `?q=` |
-| DELETE | `/api/registry` | Session | Registry leeren |
+| DELETE | `/api/registry` | Session | Registry leeren (mit `?q=` nur passende Einträge) |
 
 `/api/generate`-Logik:
 - Eingeloggt → Server-LLM (aus `.env`)
@@ -121,6 +121,10 @@ pnpm typecheck    # tsc --noEmit
 ### Registry-Invariante
 
 Die Registry speichert **nur** `key → id`. Keine Properties, keine LLM-Antworten. Grund: Properties sind immer aktuell von der aktuellen Seite maßgeblich — akkumulierte Props aus früheren Runs würden veraltete oder halluzinierte Werte perpetuieren.
+
+- **Key-Bildung** (`reconcile.keyFor`): seitengebundene Singletons (Article-/WebPage-Familie, HowTo) → ein Key pro Seite (`Article@<canonURL>`); Media → Datei-URL; sonst `@id` mit Fragment → `url` → `<Typ>@<host>:<name>` (host-scoped, damit gleiche Namen auf verschiedenen Sites nicht kollidieren). Kein stabiler Identifier → `null` → nicht persistiert, nur `mintId` (Content-Hash).
+- **Datei** (`data/registry.json`): Format v2 `{v,runCount,entries[]}`, atomarer Write (tmp + rename), tolerant gegen korrupte Datei. v1-Array wird beim Laden verworfen. TTL 180 Tage, Cap 20 000 Einträge (LRU nach `lastSeen`).
+- `DELETE /api/registry?q=…` löscht gezielt (Key/Name/Typ/id-Match), ohne `q` alles.
 
 ---
 

@@ -31,8 +31,6 @@ export class Engine {
     private llm: LlmProvider,
   ) {}
 
-  private runCount = 0;
-
   static async create(cfg: Config): Promise<Engine> {
     const brain = await SchemaBrain.load(cfg.schemaDumpPath);
     const registry = await JsonRegistry.open(cfg.registryPath);
@@ -40,9 +38,24 @@ export class Engine {
     return new Engine(cfg, brain, registry, llm);
   }
 
-  getRunCount(): number { return this.runCount; }
+  getRunCount(): number { return this.registry.getRunCount(); }
 
   async clearRegistry(): Promise<void> { await this.registry.clear(); }
+
+  async pruneRegistry(q: string): Promise<number> {
+    const needle = q.toLowerCase();
+    const n = this.registry.delete((e) => {
+      const type = Array.isArray(e.type) ? e.type.join(",") : e.type;
+      return (
+        e.key.toLowerCase().includes(needle) ||
+        e.id.toLowerCase().includes(needle) ||
+        (e.name ?? "").toLowerCase().includes(needle) ||
+        type.toLowerCase().includes(needle)
+      );
+    });
+    if (n) await this.registry.flush();
+    return n;
+  }
 
   getRegistryStats() {
     return this.registry.all()
@@ -61,7 +74,7 @@ export class Engine {
     req: NormalizeRequest,
     opts: PipelineOptions = {},
   ): Promise<PipelineResult> {
-    this.runCount++;
+    this.registry.bumpRunCount();
     const mode = opts.mode || "auto";
 
     // 1) Normalize
