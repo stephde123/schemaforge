@@ -109,6 +109,14 @@ const MEDIA_TYPES = new Set([
   "ImageObject", "VideoObject", "AudioObject", "MediaObject",
 ]);
 
+/** Types whose identity is their name, not the URL they were found on. */
+const NAME_FIRST = new Set([
+  "Person", "Organization", "Corporation", "NGO", "Brand",
+  "EducationalOrganization", "GovernmentOrganization", "NewsMediaOrganization",
+  "PerformingGroup", "MusicGroup", "SportsOrganization", "ReligiousOrganization",
+  "OnlineBusiness", "Consortium", "Airline",
+]);
+
 /** Collapse refinements to one label so TechArticle and Article share a key. */
 function familyLabel(type: string): string {
   if (ARTICLE_TYPES.has(type)) return "Article";
@@ -159,6 +167,21 @@ function keyFor(e: Entity, pageUrl: string): string | null {
   }
 
   const ownId = typeof e.id === "string" && e.id ? e.id : null;
+
+  // Person / Organization / Brand: identity is the name (+ site), not the URL
+  // of the page they appear on. An LLM may mint several @ids for the same
+  // person in one run — key on the name so they reconcile to one node.
+  if (NAME_FIRST.has(primary)) {
+    const label = firstString(e.props["name"]) ?? firstString(e.props["legalName"]);
+    if (label) {
+      const host =
+        hostOf(pageUrl) ?? hostOf(firstString(e.props["url"])) ?? hostOf(ownId);
+      return host
+        ? `${primary}@${host}:${normalize(label)}`
+        : `${primary}:${normalize(label)}`;
+    }
+  }
+
   if (ownId && (PAGE_TYPES.has(primary) || ownId.includes("#"))) {
     return `${primary}@id:${ownId.replace(/\/$/, "")}`;
   }
