@@ -274,6 +274,17 @@ export function deterministicExtract(
   const wpEntities = extractFromWpSignals(input);
   const wpTypes    = new Set(wpEntities.flatMap((e) => [e.type].flat()));
 
+  // Types already present from CMS data or existing page markup. Used to gate the
+  // heuristic "add an entity" steps below so we never emit a second Article,
+  // FAQPage, SoftwareApplication, … next to one the page already ships.
+  const existingTypes = new Set(
+    existingEntities.flatMap((e) =>
+      ([] as string[]).concat(e.type as string | string[]),
+    ),
+  );
+  const alreadyCovered = (...family: string[]): boolean =>
+    family.some((t) => wpTypes.has(t) || existingTypes.has(t));
+
   if (!input.html) return [...wpEntities, ...existingEntities];
 
   const entities: Entity[] = [];
@@ -328,20 +339,37 @@ export function deterministicExtract(
     });
   }
 
-  // 5) SoftwareApplication entity + feature list — skip if EDD already provided it
+  // 5) SoftwareApplication entity + feature list.
+  //
+  // Only emit when the page is genuinely *about* a software product — the
+  // primary classification is an app type, or a strong structural signal
+  // (EDD / download post type / a /features|/pricing|/download|/integrations
+  // URL) co-occurs with an app hint. A bare "software-terminology" text match
+  // is NOT enough: informational articles that merely mention a plugin, an API
+  // or a dashboard must stay articles.
   const hint = classification?.primaryHint;
+  const APP_TYPES = ["SoftwareApplication", "WebApplication", "MobileApplication"];
+  const strongAppSignal =
+    classification?.signals.some(
+      (s) =>
+        s === "wpsig:edd" ||
+        s === "wpsig:post_type=download" ||
+        /^url:.*(feature|pricing|plans|download|integration)/i.test(s),
+    ) ?? false;
   const isApp =
-    hint === "SoftwareApplication" ||
-    hint === "WebApplication" ||
-    hint === "MobileApplication" ||
-    classification?.additionalHints.includes("SoftwareApplication");
+    (hint != null && APP_TYPES.includes(hint)) ||
+    (strongAppSignal &&
+      !!classification &&
+      APP_TYPES.some((t) => classification.additionalHints.includes(t)));
 
-  if (isApp && !wpTypes.has("SoftwareApplication")) {
+  const appName = isApp ? productName($, input) : undefined;
+
+  if (isApp && appName && !alreadyCovered(...APP_TYPES)) {
     const features = extractFeatureItems($, classification?.primaryHint === "SoftwareApplication" && /\/features?\//i.test(input.canonicalUrl || input.sourceUrl || ""));
     const appEntity: Entity = {
       type: "SoftwareApplication",
       props: pruneEmpty({
-        name: softwareNameFromTitle(input.title),
+        name: appName,
         url: input.canonicalUrl || input.sourceUrl,
         description:
           $('meta[name="description"]').attr("content")?.trim() ||
@@ -386,8 +414,8 @@ export function deterministicExtract(
     }
   }
 
-  // 7) FAQ extraction — skip if Gutenberg blocks already provided authoritative QA pairs.
-  const qaPairs = wpTypes.has("FAQPage") ? [] : extractFaqItems($);
+  // 7) FAQ extraction — skip if the CMS or existing markup already declares FAQ.
+  const qaPairs = alreadyCovered("FAQPage", "QAPage") ? [] : extractFaqItems($);
   if (qaPairs.length >= 2) {
     entities.push({
       type: "FAQPage",
@@ -405,15 +433,15 @@ export function deterministicExtract(
     });
   }
 
-  // 8) Article signals — skip if wpSignals already extracted an article-type entity.
+  // 8) Article signals — skip if the CMS or existing markup already ships an
+  // article-family node (finalize would otherwise have to collapse a duplicate).
   const isArticle =
     hint === "Article" ||
     hint === "BlogPosting" ||
     hint === "NewsArticle" ||
+    hint === "TechArticle" ||
     classification?.additionalHints.includes("Article");
-  const articleCovered =
-    wpTypes.has("Article") || wpTypes.has("BlogPosting") || wpTypes.has("NewsArticle");
-  if (isArticle && !articleCovered) {
+  if (isArticle && !alreadyCovered("Article", "BlogPosting", "NewsArticle", "TechArticle", "Report")) {
     const article = extractArticleMeta($, input);
     if (article) entities.push(article);
   }
@@ -756,7 +784,7 @@ function extractArticleMeta(
   return {
     type: "Article",
     props: pruneEmpty({
-      headline: input.title,
+      headline: cleanHeadline($, input.title),
       url: input.canonicalUrl || input.sourceUrl,
       datePublished,
       dateModified,
@@ -832,6 +860,52 @@ function softwareNameFromTitle(title?: string): string | undefined {
   }
   // "AdPresso - Advanced Ad Management..." → "AdPresso"
   return (parts[0] ?? title).trim();
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Best guess of the product/brand name for a SoftwareApplication entity.
+ * Never falls back to the page/article title — that is how a glossary article
+ * ends up mis-named as a piece of software. Prefers explicit brand signals
+ * (og:site_name, wpSignals.site.name); otherwise accepts a title-derived name
+ * only when it already looks like a short brand, not a sentence.
+ */
+function productName(
+  $: cheerio.CheerioAPI,
+  input: NormalizedInput,
+): string | undefined {
+  const site =
+    $('meta[property="og:site_name"]').attr("content")?.trim() ||
+    input.wpSignals?.site?.name?.trim();
+  if (site && site.length <= 60) return site;
+
+  const fromTitle = softwareNameFromTitle(input.title);
+  if (
+    fromTitle &&
+    fromTitle.split(/\s+/).length <= 4 &&
+    !/[.:!?]/.test(fromTitle)
+  ) {
+    return fromTitle;
+  }
+  return undefined;
+}
+
+/** Strip a trailing " | Site Name" / " - Site Name" suffix from a headline. */
+function cleanHeadline(
+  $: cheerio.CheerioAPI,
+  title?: string,
+): string | undefined {
+  if (!title) return undefined;
+  const site = $('meta[property="og:site_name"]').attr("content")?.trim();
+  if (site) {
+    const re = new RegExp(`\\s*[|\\-–—]\\s*${escapeRegExp(site)}\\s*$`, "i");
+    const stripped = title.replace(re, "").trim();
+    if (stripped) return stripped;
+  }
+  return title;
 }
 
 // ---------------------------------------------------------------------------

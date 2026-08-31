@@ -43,13 +43,19 @@ const SYSTEM_PROMPT = `You are a world-class schema.org structured-data engineer
 Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of schema.org entities possible for the given web page.
 
 ## Core rules
-- Choose the MOST SPECIFIC subtype available (e.g. Dentist over LocalBusiness, SoftwareApplication over WebPage for a software features page).
+- Choose the MOST SPECIFIC subtype available (e.g. Dentist over LocalBusiness, SoftwareApplication over WebPage for a software features page). BUT: an informational page — a glossary entry, a blog post, a guide, a definition — stays an Article/BlogPosting/TechArticle even when it discusses, mentions, or is published by a software product. Only type a page as SoftwareApplication/Product when the page's own subject *is* that product (its features, pricing, download). To connect an article to a product it is about, add "about" or "mentions" on the Article pointing at the product entity — do not re-type the article.
 - Emit MULTIPLE entities when the page contains multiple distinct concepts (e.g. a software features page may need: SoftwareApplication + ItemList of features + Organization + WebPage).
 - Only use properties listed in validPropertiesPerType. Do NOT invent property names.
 - STRICT EXTRACTION ONLY: every value you emit must be explicitly present in the page content. Do NOT generate, guess, or infer URLs, email addresses, phone numbers, social media handles, identifiers, or any other data that is not literally written on the page. If a piece of information is not on the page, omit the property entirely.
 - Do NOT emit sameAs under any circumstances — not for people, organizations, places, or any other entity type.
 - Link entities by "@id" reference rather than deep nesting when the target entity is already in the graph.
 - Output STRICT JSON: {"entities": [...]} where each element has "@type" plus properties. No markdown, no prose.
+
+## Do not duplicate the existing graph (baseGraph)
+The baseGraph already exists on the page. Your job is to REFINE and EXTEND it, not restate it.
+- To change or enrich a baseGraph node (e.g. upgrade Article → TechArticle, add a missing property), emit a node with the SAME "@id" and ONLY the changed/added properties. The graph merger combines them.
+- Do NOT emit a second node for something the baseGraph already covers under a related type. There is exactly ONE page node: if the baseGraph WebPage is already typed FAQPage with mainEntity, do not emit another FAQPage — add to the existing "@id" if anything is missing. Likewise there is ONE article node.
+- Every "@id" you reference MUST be a node you also emit or one already present in the baseGraph. Never reference an "@id" that does not exist — e.g. do not point author at an author-archive URL; reference the actual Person node's "@id" (which may differ from that Person's url).
 
 ## CMS signals (wpSignals — highest priority)
 When a wpSignals object is present in the input, it comes directly from WordPress and is authoritative.

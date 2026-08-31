@@ -12,6 +12,7 @@ import { llmClassifyPage } from "./classify-llm.js";
 import { deterministicExtract } from "./extract/deterministic.js";
 import { llmExtract } from "./extract/llm.js";
 import { reconcile } from "./reconcile.js";
+import { finalizeGraph } from "./finalize.js";
 import { validate } from "./validate.js";
 import { toJsonLd } from "./serialize.js";
 import { SchemaBrain } from "./schema-brain.js";
@@ -122,10 +123,19 @@ export class Engine {
       entities = [...entities, ...opts.manualEntities];
     }
 
-    // 7) Reconcile (ids + memory) and 8) validate
-    const graph = await reconcile(normalized, entities, this.registry);
+    // 7) Reconcile (ids + memory), 8) finalize (graph integrity), 9) validate
+    const reconciled = await reconcile(normalized, entities, this.registry);
     await this.registry.flush();
+
+    const { graph, issues: finalizeIssues } = finalizeGraph(
+      reconciled,
+      normalized.canonicalUrl || normalized.sourceUrl,
+    );
+
     const validation = validate(graph, this.brain);
+
+    // Surface finalize changes (merges, rewired refs) alongside validation.
+    for (const issue of finalizeIssues) validation.issues.push(issue);
 
     // Surface LLM errors as warnings so callers can diagnose silent failures.
     for (const msg of llmErrors) {
