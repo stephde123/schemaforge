@@ -130,6 +130,7 @@ export class Engine {
     const { graph, issues: finalizeIssues } = finalizeGraph(
       reconciled,
       normalized.canonicalUrl || normalized.sourceUrl,
+      this.brain,
     );
 
     const validation = validate(graph, this.brain);

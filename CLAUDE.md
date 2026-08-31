@@ -155,10 +155,10 @@ readme.txt                  # WordPress.org Readme (stable tag hier aktuell halt
 ### Wichtige Konstanten (schemaforge-wp.php)
 
 ```php
-SCHEMAFORGE_WP_VERSION      // '1.2.2'
+SCHEMAFORGE_WP_VERSION      // '1.6.1'
 SCHEMAFORGE_WP_DIR          // Absoluter Plugin-Pfad
 SCHEMAFORGE_WP_URL          // Plugin-URL
-SCHEMAFORGE_WP_ENDPOINT     // Standard: 'http://64.226.96.241:8420'
+SCHEMAFORGE_WP_ENDPOINT     // Standard: 'https://schemaforge.appundweb.de'
                              // Überschreibbar per wp-config.php
 SCHEMAFORGE_WP_CRON_HOOK    // 'schemaforge_wp_generate_event'
 ```

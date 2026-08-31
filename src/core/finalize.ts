@@ -1,4 +1,5 @@
 import type { Entity, EntityGraph, ValidationIssue } from "./types.js";
+import type { SchemaBrain } from "./schema-brain.js";
 
 /**
  * Graph-integrity pass. Runs after reconcile (ids assigned) and before validate
@@ -6,13 +7,17 @@ import type { Entity, EntityGraph, ValidationIssue } from "./types.js";
  * own, because the final graph is the concatenation of three independent sources
  * (existing markup + deterministic rules + LLM):
  *
- *   1. every @id is unique — nodes that collide are merged, not duplicated
- *   2. one page node and one article node per page — related subtypes
+ *   1. properties carried in from the page's own markup are sanitised — a
+ *      non-standard property name is remapped to its schema.org equivalent
+ *      where one is known, otherwise an invalid property is dropped so we
+ *      never re-publish someone else's broken markup under our name
+ *   2. every @id is unique — nodes that collide are merged, not duplicated
+ *   3. one page node and one article node per page — related subtypes
  *      (Article/TechArticle, WebPage/FAQPage) are refinements of the same
  *      real-world entity and must not appear as separate nodes
- *   3. every { "@id": … } reference resolves to a node in the graph — dangling
+ *   4. every { "@id": … } reference resolves to a node in the graph — dangling
  *      references are rewired to the real node, inlined, or dropped
- *   4. purely subordinate nodes that nothing references are pruned
+ *   5. purely subordinate nodes that nothing references are pruned
  *
  * Returns the cleaned graph plus a list of issues describing what was changed,
  * so the caller can surface them in the validation report.
@@ -20,10 +25,12 @@ import type { Entity, EntityGraph, ValidationIssue } from "./types.js";
 export function finalizeGraph(
   graph: EntityGraph,
   pageUrl?: string,
+  brain?: SchemaBrain,
 ): { graph: EntityGraph; issues: ValidationIssue[] } {
   const issues: ValidationIssue[] = [];
   let entities = graph.entities.map(cloneEntity);
 
+  if (brain?.loaded) sanitizeProps(entities, brain, issues);
   entities = mergeById(entities, issues);
   entities = collapseFamily(entities, ARTICLE_TYPES, "article", pageUrl, issues);
   entities = collapseFamily(entities, PAGE_TYPES, "page", pageUrl, issues);
@@ -60,6 +67,72 @@ const SUBORDINATE_TYPES = new Set([
   "PropertyValue", "MonetaryAmount", "PriceSpecification",
   "UnitPriceSpecification",
 ]);
+
+// ---------------------------------------------------------------------------
+// Pass 0 — property sanitation
+// ---------------------------------------------------------------------------
+
+/**
+ * Non-standard property names seen in the wild, mapped to the schema.org
+ * property that carries the same meaning. Applied to every source; the
+ * invalid original is only remapped, never both kept.
+ */
+const PROP_ALIASES: Record<string, string> = {
+  features: "featureList",
+};
+
+/**
+ * Strip / remap properties that schema.org does not define for a node's type.
+ *
+ * Aliases (e.g. `features` → `featureList`) are fixed regardless of source.
+ * Outright-invalid properties are only dropped from nodes imported from the
+ * page's own markup (`_source: "existing"`) — our own deterministic output and
+ * the separately-constrained LLM output are left untouched.
+ *
+ * A node whose @type is unknown to the brain, or a known type with no indexed
+ * property universe, is skipped entirely so custom vocabularies survive.
+ */
+function sanitizeProps(
+  entities: Entity[],
+  brain: SchemaBrain,
+  issues: ValidationIssue[],
+): void {
+  for (const e of entities) {
+    const types = toArr(e.type).filter(
+      (t) => brain.hasType(t) && brain.propertiesFor(t).length > 0,
+    );
+    if (!types.length) continue;
+
+    const validForAny = (p: string) =>
+      types.some((t) => brain.isPropertyValidFor(p, t));
+    const subject = e.id || toArr(e.type).join(",");
+
+    for (const key of Object.keys(e.props)) {
+      if (key.startsWith("@") || validForAny(key)) continue;
+
+      const alias = PROP_ALIASES[key];
+      if (alias && validForAny(alias) && !(alias in e.props)) {
+        e.props[alias] = e.props[key];
+        delete e.props[key];
+        issues.push({
+          level: "info",
+          subject,
+          message: `Remapped non-standard property "${key}" → "${alias}".`,
+        });
+        continue;
+      }
+
+      if (e._source === "existing") {
+        delete e.props[key];
+        issues.push({
+          level: "info",
+          subject,
+          message: `Dropped property "${key}" from imported markup — not valid for ${types.join("/")}.`,
+        });
+      }
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Pass 1 — merge nodes that share an @id
