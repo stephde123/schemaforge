@@ -44,6 +44,19 @@ export async function reconcile(
       e.id = reg?.id || mintId(base, e);
     }
 
+    // The bare page URL is the WebPage node's @id. Anything else that ends up
+    // holding it — an LLM reusing the canonical URL for a TechArticle, or a
+    // stale registry entry from such a run — collides with the page node and
+    // gets dropped in finalize. Force a fragment id for non-page entities.
+    const primaryType = Array.isArray(e.type) ? e.type[0]! : e.type;
+    if (
+      !WEB_PAGE_TYPES.has(primaryType) &&
+      !e.id.includes("#") &&
+      e.id.replace(/\/$/, "") === base
+    ) {
+      e.id = mintId(base, e);
+    }
+
     registry.upsert({
       key: e._key!,
       id: e.id,
