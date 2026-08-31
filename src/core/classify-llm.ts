@@ -43,8 +43,16 @@ export async function llmClassifyPage(
   if (!types.length) return classifyPage(input);
 
   // Filter to types that actually exist in the schema.org brain
-  const valid = types.filter((t) => brain.hasType(t));
+  let valid = types.filter((t) => brain.hasType(t));
   if (!valid.length) return classifyPage(input);
+
+  // The LLM keys on what a page is ABOUT; a /docs/, /blog/, /guide/ URL is a
+  // near-certain signal that the page IS an article regardless. When the
+  // heuristic caught such a URL rule and the LLM led with an entity type
+  // instead, put the content type first and keep the LLM's pick as secondary
+  // (it becomes `about` / `mainEntity` downstream).
+  const heuristic = classifyPage(input);
+  valid = reconcileContentType(heuristic, valid);
 
   return {
     primaryHint: valid[0]!,
@@ -52,6 +60,27 @@ export async function llmClassifyPage(
     signals: ["llm-type-selector", ...valid.map((t) => `llm:${t}`)],
     confidence,
   };
+}
+
+const CONTENT_TYPES = new Set([
+  "Article", "TechArticle", "BlogPosting", "NewsArticle", "Report",
+  "ScholarlyArticle", "HowTo", "FAQPage", "QAPage",
+]);
+
+function reconcileContentType(
+  heuristic: PageClassification,
+  llmTypes: string[],
+): string[] {
+  const hp = heuristic.primaryHint;
+  const fromUrlRule = heuristic.signals.some((s) => s.startsWith("url:"));
+  if (
+    CONTENT_TYPES.has(hp) &&
+    fromUrlRule &&
+    !CONTENT_TYPES.has(llmTypes[0] ?? "")
+  ) {
+    return [hp, ...llmTypes.filter((t) => t !== hp)];
+  }
+  return llmTypes;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,7 +92,7 @@ let _cachedSystem: string | null = null;
 let _cachedBrainKey: string | null = null;
 
 // Bump this when the prompt format changes to bust the module-level cache.
-const CLASSIFIER_VERSION = "v2";
+const CLASSIFIER_VERSION = "v3";
 
 function buildSystemPrompt(brain: SchemaBrain): string {
   const key = CLASSIFIER_VERSION + ":" + String(brain.allTypes().length);
@@ -81,10 +110,11 @@ function buildSystemPrompt(brain: SchemaBrain): string {
 Given a web page URL, title, and a short text excerpt, identify the 2–8 schema.org types that best describe the page's PRIMARY content.
 
 Rules:
+- IS vs ABOUT: if the page is an article, blog post, news story, tutorial, guide, FAQ, or product/software documentation, the PRIMARY type is the content type (TechArticle for docs/API/dev content, HowTo for step-by-step guides, NewsArticle, BlogPosting, FAQPage, else Article). A product, software, organization, or person the text merely describes is a SECONDARY type in the list (it becomes the article's subject), never the primary. URL cues: /docs/, /kb/, /help/, /guide/, /tutorial/, /how-to/, /blog/, /news/, /article/, dated paths → content page. /pricing/, /features/, /download/, /product/ → the entity's own page.
 - Always pick the MOST SPECIFIC subtype available (CatholicChurch > Church > PlaceOfWorship > LocalBusiness).
-- Include parallel types that add genuine structured-data value (historic church → ["CatholicChurch", "TouristAttraction", "LandmarksOrHistoricalBuildings"]).
+- Include parallel types that add genuine structured-data value (historic church → ["CatholicChurch", "TouristAttraction", "LandmarksOrHistoricalBuildings"]; a docs page about an API → ["TechArticle", "WebAPI"]).
 - Omit abstract parents already implied by a specific child in your list (no "LocalBusiness" if "Restaurant" is already there).
-- Omit page-infrastructure types: WebPage, WebSite, BreadcrumbList, SiteNavigationElement.
+- Omit pure page-infrastructure types: WebPage, WebSite, BreadcrumbList, SiteNavigationElement. (Article/TechArticle/HowTo/FAQPage are CONTENT, not infrastructure — include them.)
 - Output ONLY a valid JSON object with exactly two fields:
   {"types": ["Type1", "Type2", ...], "confidence": 0.0}
   where "confidence" is a float 0.0–1.0 reflecting how unambiguously the page type is identifiable
