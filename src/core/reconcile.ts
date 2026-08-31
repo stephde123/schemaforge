@@ -126,6 +126,7 @@ const NAME_FIRST = new Set([
   "EducationalOrganization", "GovernmentOrganization", "NewsMediaOrganization",
   "PerformingGroup", "MusicGroup", "SportsOrganization", "ReligiousOrganization",
   "OnlineBusiness", "Consortium", "Airline",
+  "SoftwareApplication", "WebApplication", "MobileApplication", "WebAPI",
 ]);
 
 /** Collapse refinements to one label so TechArticle and Article share a key. */

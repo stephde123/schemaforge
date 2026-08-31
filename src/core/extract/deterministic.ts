@@ -456,6 +456,37 @@ export function deterministicExtract(
     if (howto) entities.push(howto);
   }
 
+  // 8c) The product an article/doc is about — a lean SoftwareApplication node
+  // so `about` / `mentions` have a real target regardless of whether the LLM
+  // remembered to emit one. Gated on the LLM type-selector itself flagging an
+  // app type as secondary (a reliable "about software" signal; the
+  // conservative heuristic in step 5 deliberately won't fire on a doc page).
+  const llmFlaggedApp =
+    !!classification?.signals.includes("llm-type-selector") &&
+    classification.signals.some((s) =>
+      /^llm:(SoftwareApplication|WebApplication|MobileApplication|WebAPI)$/.test(s),
+    );
+  if (
+    articleHint &&
+    llmFlaggedApp &&
+    !alreadyCovered("SoftwareApplication", "WebApplication", "MobileApplication", "WebAPI")
+  ) {
+    const name = productName($, input);
+    const origin = siteOrigin(input);
+    if (name && origin) {
+      entities.push({
+        type: "SoftwareApplication",
+        props: pruneEmpty({
+          name,
+          url: origin,
+          applicationCategory: detectAppCategory($, input.text || ""),
+          operatingSystem: detectOperatingSystem($, input.text || ""),
+        }),
+        _source: "deterministic",
+      });
+    }
+  }
+
   // 9) AggregateRating — skip if a rating plugin provided authoritative data via wpSignals.
   const hasRatings =
     classification?.additionalHints.includes("AggregateRating") ||
@@ -979,6 +1010,20 @@ function escapeRegExp(s: string): string {
  * (og:site_name, wpSignals.site.name); otherwise accepts a title-derived name
  * only when it already looks like a short brand, not a sentence.
  */
+/** Site root URL — the home of a site-wide entity, not the current page. */
+function siteOrigin(input: NormalizedInput): string | undefined {
+  const raw =
+    input.wpSignals?.site?.url ||
+    input.canonicalUrl ||
+    input.sourceUrl ||
+    "";
+  try {
+    return new URL(raw).origin + "/";
+  } catch {
+    return undefined;
+  }
+}
+
 function productName(
   $: cheerio.CheerioAPI,
   input: NormalizedInput,
