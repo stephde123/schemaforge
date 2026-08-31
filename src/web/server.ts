@@ -1,5 +1,5 @@
 import express from "express";
-import { randomUUID } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -15,7 +15,42 @@ const { version: API_VERSION } = JSON.parse(
 ) as { version: string };
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const sessions = new Map<string, { user: string; expires: number }>();
+
+/**
+ * Stateless HMAC-signed session tokens: `base64url(user).<expiryMs>.<sig>`.
+ * No server-side store, so tokens survive a redeploy — the previous in-memory
+ * Map silently invalidated every companion-plugin token on every deploy, and
+ * /api/generate then treated the request as anonymous (→ deterministic).
+ */
+function createSessionAuth(secret: string) {
+  const revoked = new Set<string>();
+  const sign = (data: string) =>
+    createHmac("sha256", secret).update(data).digest("base64url");
+
+  return {
+    issue(user: string): string {
+      const payload = `${Buffer.from(user).toString("base64url")}.${Date.now() + SESSION_TTL_MS}`;
+      return `${payload}.${sign(payload)}`;
+    },
+    verify(token: string | null): { user: string } | null {
+      if (!token || revoked.has(token)) return null;
+      const [u, exp, mac] = token.split(".");
+      if (!u || !exp || !mac) return null;
+      const expected = sign(`${u}.${exp}`);
+      if (
+        mac.length !== expected.length ||
+        !timingSafeEqual(Buffer.from(mac), Buffer.from(expected))
+      ) {
+        return null;
+      }
+      if (!Number(exp) || Number(exp) < Date.now()) return null;
+      return { user: Buffer.from(u, "base64url").toString() };
+    },
+    revoke(token: string | null) {
+      if (token) revoked.add(token);
+    },
+  };
+}
 
 const ContextSchema = z.object({
   /** Which SEO plugin is active on the WordPress site (e.g. "yoast", "rankmath"). */
@@ -152,29 +187,22 @@ function getToken(req: express.Request): string | null {
   return null;
 }
 
-function getSession(req: express.Request): { user: string } | null {
-  const token = getToken(req);
-  if (!token) return null;
-  const s = sessions.get(token);
-  if (!s || s.expires < Date.now()) {
-    sessions.delete(token);
-    return null;
-  }
-  return { user: s.user };
-}
-
-function requireSession(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction,
-) {
-  if (!getSession(req)) return res.status(401).json({ error: "Not authenticated" });
-  next();
-}
-
 async function main() {
   const cfg = loadConfig();
   const engine = await Engine.create(cfg);
+
+  const auth = createSessionAuth(
+    process.env.AUTH_SECRET || `${cfg.authUser}::${cfg.authPassword}`,
+  );
+  const getSession = (req: express.Request) => auth.verify(getToken(req));
+  const requireSession = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (!getSession(req)) return res.status(401).json({ error: "Not authenticated" });
+    next();
+  };
 
   const app = express();
   app.use(express.json({ limit: "5mb" }));
@@ -210,13 +238,11 @@ async function main() {
     if (user !== cfg.authUser || password !== cfg.authPassword) {
       return res.status(401).json({ error: "Falsche Zugangsdaten" });
     }
-    const token = randomUUID();
-    sessions.set(token, { user, expires: Date.now() + SESSION_TTL_MS });
-    res.json({ token });
+    res.json({ token: auth.issue(user) });
   });
 
   app.post("/api/logout", requireSession, (req, res) => {
-    sessions.delete(getToken(req)!);
+    auth.revoke(getToken(req));
     res.json({ ok: true });
   });
 
@@ -234,7 +260,16 @@ async function main() {
       return res.status(400).json({ error: "Provide url, html, or text." });
     }
 
-    const isLoggedIn = getSession(req) !== null;
+    // A caller that sent a Bearer token expects authenticated behaviour. If it
+    // no longer verifies (expired / server secret rotated), say so — don't
+    // silently downgrade to an anonymous deterministic run.
+    const token = getToken(req);
+    const session = auth.verify(token);
+    if (token && !session) {
+      return res.status(401).json({ error: "Session abgelaufen — bitte neu einloggen." });
+    }
+
+    const isLoggedIn = session !== null;
     let llmOverride = undefined;
     let effectiveMode = mode;
 
