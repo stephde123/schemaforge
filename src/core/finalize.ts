@@ -351,13 +351,30 @@ function fixReferences(entities: Entity[], issues: ValidationIssue[]): void {
       ) {
         const inlineTypes = toArr(obj["@type"] as string | string[]);
         const conflict = !typesCompatible(topLevelTypes.get(ref)!, inlineTypes);
+
+        // On a conflict the @id is wrong but the intent — link to a node of
+        // `inlineTypes` — is clear. If the graph has exactly one such node,
+        // rewire to it (LLM emits `about: {SoftwareApplication, @id:#org}`
+        // alongside a real SoftwareApplication node → point at the real one).
+        let target = ref;
+        if (conflict) {
+          const matches = [...topLevelTypes].filter(([, ts]) =>
+            ts.some((t) => inlineTypes.includes(t)),
+          );
+          if (matches.length === 1) target = matches[0]![0];
+        }
+
         for (const k of Object.keys(obj)) if (k !== "@id") delete obj[k];
+        obj["@id"] = target;
         issues.push({
-          level: conflict ? "warning" : "info",
+          level: conflict && target === ref ? "warning" : "info",
           subject,
-          message: conflict
-            ? `Reduced an inline ${inlineTypes.join(",")} node to a reference — its @id "${ref}" already belongs to a ${topLevelTypes.get(ref)!.join(",")} node.`
-            : `Collapsed a redundant inline node to a reference to "${ref}".`,
+          message:
+            target !== ref
+              ? `Rewired a mistyped inline reference from "${ref}" to the ${inlineTypes.join(",")} node "${target}".`
+              : conflict
+                ? `Reduced an inline ${inlineTypes.join(",")} node to a reference — its @id "${ref}" already belongs to a ${topLevelTypes.get(ref)!.join(",")} node.`
+                : `Collapsed a redundant inline node to a reference to "${ref}".`,
         });
       }
 
