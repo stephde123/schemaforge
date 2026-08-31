@@ -280,10 +280,12 @@ function fixReferences(entities: Entity[], issues: ValidationIssue[]): void {
   const idSet = new Set<string>();
   const byUrl = new Map<string, string>();
   const bySlug = new Map<string, string>();
+  const topLevelTypes = new Map<string, string[]>();
 
   for (const e of entities) {
     if (!e.id) continue;
     idSet.add(e.id);
+    topLevelTypes.set(e.id, allTypes(e));
     const slug = slugOf(e.id);
     if (slug && !bySlug.has(slug)) bySlug.set(slug, e.id);
     const u = normUrl(str(e.props["url"]));
@@ -335,6 +337,29 @@ function fixReferences(entities: Entity[], issues: ValidationIssue[]): void {
     if (value && typeof value === "object") {
       const obj = value as Record<string, unknown>;
       const ref = obj["@id"];
+
+      // An inline node (own @type + props) whose @id already belongs to a
+      // top-level node. The top-level node is authoritative for that @id, so
+      // the inline copy is at best redundant and at worst a type conflict
+      // (an LLM pointing `about` at #organization but typing it
+      // SoftwareApplication → a phantom Organization+SoftwareApplication node).
+      // Collapse it to a bare reference.
+      if (
+        typeof ref === "string" &&
+        "@type" in obj &&
+        topLevelTypes.has(ref)
+      ) {
+        const inlineTypes = toArr(obj["@type"] as string | string[]);
+        const conflict = !typesCompatible(topLevelTypes.get(ref)!, inlineTypes);
+        for (const k of Object.keys(obj)) if (k !== "@id") delete obj[k];
+        issues.push({
+          level: conflict ? "warning" : "info",
+          subject,
+          message: conflict
+            ? `Reduced an inline ${inlineTypes.join(",")} node to a reference — its @id "${ref}" already belongs to a ${topLevelTypes.get(ref)!.join(",")} node.`
+            : `Collapsed a redundant inline node to a reference to "${ref}".`,
+        });
+      }
 
       if (typeof ref === "string" && !ref.startsWith("_:") && isThinReference(obj)) {
         const resolved = resolve(ref);

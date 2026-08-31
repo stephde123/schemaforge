@@ -63,6 +63,7 @@ The baseGraph already exists on the page. Your job is to REFINE and EXTEND it, n
 - To change or enrich a baseGraph node (e.g. upgrade Article → TechArticle, add a missing property), emit a node with the SAME "@id" and ONLY the changed/added properties. The graph merger combines them.
 - Do NOT emit a second node for something the baseGraph already covers under a related type. There is exactly ONE page node: if the baseGraph WebPage is already typed FAQPage with mainEntity, do not emit another FAQPage — add to the existing "@id" if anything is missing. Likewise there is ONE article node.
 - Every "@id" you reference MUST be a node you also emit or one already present in the baseGraph. Never reference an "@id" that does not exist — e.g. do not point author at an author-archive URL; reference the actual Person node's "@id" (which may differ from that Person's url).
+- A reference is { "@id": "…" } and nothing else. NEVER attach a "@type" to an "@id" that belongs to a different kind of node (pointing "about" at "#organization" but typing it SoftwareApplication corrupts that node). If you want to link to a product, EMIT a top-level SoftwareApplication/Product node with its own distinct "@id" and reference that.
 
 ## CMS signals (wpSignals — highest priority)
 When a wpSignals object is present in the input, it comes directly from WordPress and is authoritative.
