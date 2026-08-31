@@ -11,6 +11,9 @@ export class OpenAIProvider implements LlmProvider {
     const res = await this.client.chat.completions.create({
       model: this.model,
       response_format: { type: "json_object" },
+      // A comprehensive JSON-LD graph for a rich page needs room; the default
+      // is model-dependent and a truncated response drops entities silently.
+      max_tokens: 16384,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },

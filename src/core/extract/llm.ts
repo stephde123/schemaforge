@@ -12,7 +12,7 @@ export async function llmExtract(
   requestContext?: RequestContext,
 ): Promise<Entity[]> {
   const candidateTypes = pickCandidateTypes(base, brain, classification);
-  const propertyHints = buildPropertyHints(candidateTypes, brain, classification);
+  const propertyHints = buildPropertyHints(candidateTypes, brain, classification, base);
 
   const raw = await llm.complete(SYSTEM_PROMPT, buildUserPrompt(input, base, candidateTypes, propertyHints, classification, requestContext));
   const parsed = safeParse(raw);
@@ -40,7 +40,14 @@ export async function llmExtract(
 }
 
 const SYSTEM_PROMPT = `You are a world-class schema.org structured-data engineer.
-Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of schema.org entities possible for the given web page.
+Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of schema.org entities possible for the given web page. Aim well beyond the minimum Google rich-result fields — if a fact is on the page and a schema.org property exists for it, mark it up.
+
+## Depth & completeness (this is the whole point)
+- Emit EVERY distinct entity the page supports, not just the primary one: the primary content entity, its author/publisher/provider, the site (WebSite), the organization behind it, images (ImageObject), breadcrumbs, ratings, offers, the subject(s) the content is about, sub-parts (sections, steps, list items, Q&As, menu sections, room types, course instances, episodes…).
+- Fill EVERY valid property for which the page gives a value. A node with 4 properties when the page supports 15 is a failure.
+- Prefer linked sub-entities over bare strings: author → Person node; address → PostalAddress; opening hours → OpeningHoursSpecification[]; price → Offer with priceCurrency; ratings → AggregateRating; geo → GeoCoordinates; measurements → QuantitativeValue.
+- Cross-cutting properties to always consider when the page supports them: about / mentions (link content to the entities it discusses), mainEntity, isPartOf / hasPart, datePublished / dateModified, inLanguage, keywords, author / publisher / copyrightHolder / creator / provider, image / primaryImageOfPage / thumbnailUrl, url, description, alternateName, identifier, sameAs (ONLY from links literally on the page — see rules), wordCount / timeRequired / totalTime, audience, accessibilityFeature, significantLink / relatedLink, potentialAction, speakable (SpeakableSpecification), citation, isBasedOn, license, contentRating, award, knowsAbout / knowsLanguage (Person), areaServed / serviceType / slogan / foundingDate / numberOfEmployees (Organization).
+- Include parallel types that add real structured-data value (a historic church → CatholicChurch + TouristAttraction + LandmarksOrHistoricalBuildings; an API doc → TechArticle + WebAPI).
 
 ## Core rules
 - Choose the MOST SPECIFIC subtype available (e.g. Dentist over LocalBusiness, SoftwareApplication over WebPage for a software features page). BUT: an informational page — a glossary entry, a blog post, a guide, a definition — stays an Article/BlogPosting/TechArticle even when it discusses, mentions, or is published by a software product. Only type a page as SoftwareApplication/Product when the page's own subject *is* that product (its features, pricing, download). To connect an article to a product it is about, add "about" or "mentions" on the Article pointing at the product entity — do not re-type the article.
@@ -168,7 +175,8 @@ Prefer it over anything inferred from the page content. Do NOT omit or contradic
 - Always include BreadcrumbList if breadcrumbs are visible.
 - For any page: if there is a visible author/founder/team member → emit Person entities with at minimum name and jobTitle.
 - If the page is primarily ABOUT a named individual (biography, "Über mich", "About me", personal profile, portfolio, speaker page, coach page) — regardless of the page type classification — ALWAYS emit a Person entity as the primary entity. Do not wait for a specific classification hint. Use the page text to fill name, jobTitle, description, knowsAbout, hasCredential, address.
-- Be thorough: a low coverageScore means important entities or properties were missed.`;
+- When an article/guide/FAQ/doc is *about* a product, org, place or person, emit that subject as its own fully-populated node and link it with about/mentions — the reader gets both the content markup and the entity markup.
+- Be thorough: a low coverageScore means important entities or properties were missed. Re-scan the page for anything you left on the table before returning.`;
 
 function buildUserPrompt(
   input: NormalizedInput,
@@ -194,8 +202,9 @@ function buildUserPrompt(
         lang: input.lang,
         // Cleaned HTML preserves heading hierarchy, lists, tables, details/summary
         // and other structural signals that plain text loses. Fall back to plain
-        // text when no HTML was available (text-only input).
-        content: (input.cleanedHtml ?? input.text).slice(0, 24000),
+        // text when no HTML was available (text-only input). Generous cap — a
+        // truncated page means entities and properties in the tail get missed.
+        content: (input.cleanedHtml ?? input.text).slice(0, 60000),
       },
       pageClassification: classification
         ? {
@@ -246,11 +255,12 @@ const BASE_SEEDS = [
   // Local business subtypes — food & drink
   "FoodEstablishment", "Restaurant", "Bakery", "BarOrPub", "Brewery",
   "CafeOrCoffeeShop", "FastFoodRestaurant", "IceCreamShop",
-  "PizzaRestaurant", "Winery",
+  "PizzaRestaurant", "Winery", "Menu", "MenuSection", "MenuItem",
 
   // Local business subtypes — lodging
   "LodgingBusiness", "Hotel", "Hostel", "BedAndBreakfast", "Motel", "Resort",
-  "VacationRental",
+  "VacationRental", "Accommodation", "Room", "Suite", "HotelRoom",
+  "LocationFeatureSpecification",
 
   // Local business subtypes — healthcare & medical
   "MedicalOrganization", "MedicalClinic", "Physician", "Dentist",
@@ -296,9 +306,14 @@ const BASE_SEEDS = [
   "RealEstateListing",
 
   // Content types
-  "Article", "BlogPosting", "NewsArticle", "TechArticle",
+  "Article", "BlogPosting", "NewsArticle", "TechArticle", "Report",
   "AnalysisNewsArticle", "OpinionNewsArticle", "ReviewNewsArticle",
-  "HowTo", "HowToStep", "HowToSection", "Recipe",
+  "HowTo", "HowToStep", "HowToSection", "HowToTip", "HowToDirection",
+  "HowToSupply", "HowToTool", "Recipe", "Guide",
+  "DefinedTerm", "DefinedTermSet", "Quotation", "Claim", "SpecialAnnouncement",
+
+  // Developer / data
+  "WebAPI", "APIReference", "Dataset", "DataDownload", "SoftwareSourceCode",
 
   // Lists & navigation
   "ItemList", "BreadcrumbList", "ListItem",
@@ -357,12 +372,21 @@ function pickCandidateTypes(
     for (const h of classification.additionalHints) seeds.add(h);
   }
 
-  // Expand ONLY the classification hints to their direct subtypes — not all
-  // BASE_SEEDS, which generates ~2000 types and blows the token budget.
-  if (brain.loaded && classification) {
-    const hintsToExpand = [classification.primaryHint, ...classification.additionalHints];
-    for (const hint of hintsToExpand) {
-      for (const sub of brain.subTypesOf(hint).slice(0, 10)) seeds.add(sub);
+  // Expand the classification hints AND the base-graph types to their subtypes
+  // so the LLM has the specific variants on hand (SoftwareApplication →
+  // WebApplication/MobileApplication; Article → TechArticle/…). Not all
+  // BASE_SEEDS — that generates ~2000 types and blows the token budget.
+  if (brain.loaded) {
+    const toExpand = new Set<string>();
+    if (classification) {
+      toExpand.add(classification.primaryHint);
+      for (const h of classification.additionalHints) toExpand.add(h);
+    }
+    for (const e of base) {
+      for (const t of Array.isArray(e.type) ? e.type : [e.type]) toExpand.add(t);
+    }
+    for (const hint of toExpand) {
+      for (const sub of brain.subTypesOf(hint).slice(0, 25)) seeds.add(sub);
     }
   }
 
@@ -388,22 +412,31 @@ function buildPropertyHints(
   types: string[],
   brain: SchemaBrain,
   classification?: PageClassification,
+  base: Entity[] = [],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   if (!brain.loaded) return out;
 
-  // Only emit hints for classification-driven types + a small structural set.
-  // GPT-4o already knows all schema.org properties; hints exist only to
-  // constrain property names — so covering the 10-20 most likely types is enough.
-  const priority = new Set<string>([
-    ...(classification ? [classification.primaryHint, ...classification.additionalHints] : []),
-    ...ALWAYS_HINT_TYPES,
-  ]);
+  // Hint the types the LLM is actually likely to emit: the classification
+  // hints and their subtypes, everything already in the base graph, and a
+  // structural set. The hint list is a property whitelist ("do NOT invent
+  // property names"), so a stingy list caps achievable depth — keep it wide.
+  const priority = new Set<string>(ALWAYS_HINT_TYPES);
+  if (classification) {
+    priority.add(classification.primaryHint);
+    for (const h of classification.additionalHints) priority.add(h);
+    for (const hint of [classification.primaryHint, ...classification.additionalHints]) {
+      for (const sub of brain.subTypesOf(hint).slice(0, 25)) priority.add(sub);
+    }
+  }
+  for (const e of base) {
+    for (const t of Array.isArray(e.type) ? e.type : [e.type]) priority.add(t);
+  }
 
   for (const t of types) {
     if (!priority.has(t)) continue;
     const props = brain.propertiesFor(t);
-    if (props.length) out[t] = props.slice(0, 80);
+    if (props.length) out[t] = props.slice(0, 160);
   }
   return out;
 }

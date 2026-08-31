@@ -10,7 +10,9 @@ export class AnthropicProvider implements LlmProvider {
   async complete(system: string, user: string): Promise<string> {
     const res = await this.client.messages.create({
       model: this.model,
-      max_tokens: 4096,
+      // A comprehensive JSON-LD graph for a rich page runs well past 4k tokens;
+      // a low cap silently truncates the JSON mid-object and entities are lost.
+      max_tokens: 16000,
       system,
       messages: [{ role: "user", content: user }],
     });

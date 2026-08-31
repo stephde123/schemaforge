@@ -27,8 +27,9 @@ export async function llmClassifyPage(
   const user = JSON.stringify({
     url: input.canonicalUrl || input.sourceUrl || "",
     title: input.title || "",
-    // Short excerpt — type selection doesn't need the full page text
-    excerpt: input.text.slice(0, 3000),
+    // Enough text to catch secondary facets (a docs page that also reviews a
+    // product, an about page that also lists events) — not the whole page.
+    excerpt: input.text.slice(0, 8000),
   });
 
   let raw: string;
@@ -92,7 +93,7 @@ let _cachedSystem: string | null = null;
 let _cachedBrainKey: string | null = null;
 
 // Bump this when the prompt format changes to bust the module-level cache.
-const CLASSIFIER_VERSION = "v3";
+const CLASSIFIER_VERSION = "v4";
 
 function buildSystemPrompt(brain: SchemaBrain): string {
   const key = CLASSIFIER_VERSION + ":" + String(brain.allTypes().length);
@@ -107,7 +108,7 @@ function buildSystemPrompt(brain: SchemaBrain): string {
     .join(", ");
 
   _cachedSystem = `You are a schema.org type classifier.
-Given a web page URL, title, and a short text excerpt, identify the 2–8 schema.org types that best describe the page's PRIMARY content.
+Given a web page URL, title, and a text excerpt, identify the 3 to 12 schema.org types that best describe the page. Lead with the type of the page's PRIMARY content, then every secondary type that would carry genuine structured-data value (things the page is about, sub-structures like FAQ/HowTo, the site's organization, media). More specific and more parallel types are better as long as they are actually supported by the page.
 
 Rules:
 - IS vs ABOUT: if the page is an article, blog post, news story, tutorial, guide, FAQ, or product/software documentation, the PRIMARY type is the content type (TechArticle for docs/API/dev content, HowTo for step-by-step guides, NewsArticle, BlogPosting, FAQPage, else Article). A product, software, organization, or person the text merely describes is a SECONDARY type in the list (it becomes the article's subject), never the primary. URL cues: /docs/, /kb/, /help/, /guide/, /tutorial/, /how-to/, /blog/, /news/, /article/, dated paths → content page. /pricing/, /features/, /download/, /product/ → the entity's own page.
