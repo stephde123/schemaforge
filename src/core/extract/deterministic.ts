@@ -435,15 +435,25 @@ export function deterministicExtract(
 
   // 8) Article signals — skip if the CMS or existing markup already ships an
   // article-family node (finalize would otherwise have to collapse a duplicate).
-  const isArticle =
-    hint === "Article" ||
-    hint === "BlogPosting" ||
-    hint === "NewsArticle" ||
-    hint === "TechArticle" ||
-    classification?.additionalHints.includes("Article");
-  if (isArticle && !alreadyCovered("Article", "BlogPosting", "NewsArticle", "TechArticle", "Report")) {
-    const article = extractArticleMeta($, input);
+  const ARTICLE_TYPES = ["Article", "BlogPosting", "NewsArticle", "TechArticle", "Report"];
+  const articleHint =
+    (hint && ARTICLE_TYPES.includes(hint) && hint) ||
+    ((classification?.additionalHints ?? []).find((t) => ARTICLE_TYPES.includes(t))) ||
+    (classification?.additionalHints.includes("Article") ? "Article" : undefined);
+  if (articleHint && !alreadyCovered(...ARTICLE_TYPES)) {
+    const article = extractArticleMeta($, input, articleHint, existingEntities);
     if (article) entities.push(article);
+  }
+
+  // 8b) HowTo — step-by-step guides. Emitted alongside the article node so a
+  // docs page can be both a TechArticle and a HowTo (Google allows this).
+  const wantsHowTo =
+    hint === "HowTo" ||
+    (!!classification?.additionalHints.includes("HowTo") &&
+      !!classification?.signals.includes("howto-content"));
+  if (wantsHowTo && !alreadyCovered("HowTo")) {
+    const howto = extractHowTo($, input);
+    if (howto) entities.push(howto);
   }
 
   // 9) AggregateRating — skip if a rating plugin provided authoritative data via wpSignals.
@@ -767,31 +777,127 @@ function extractFaqItems($: cheerio.CheerioAPI): QaPair[] {
 function extractArticleMeta(
   $: cheerio.CheerioAPI,
   input: NormalizedInput,
+  preferredType: string,
+  existing: Entity[],
 ): Entity | null {
-  const datePublished =
+  const headline = cleanHeadline($, input.title);
+  if (!headline) return null;
+
+  const type = ["BlogPosting", "NewsArticle", "TechArticle", "Report"].includes(preferredType)
+    ? preferredType
+    : "Article";
+
+  // Signals in the page's own <head> / body — Yoast only emits article: tags
+  // for content it genuinely treats as an Article, so these stay a hard
+  // requirement for the generic "Article" type.
+  const htmlPublished =
     $('meta[property="article:published_time"]').attr("content") ||
+    $('time[itemprop="datePublished"]').attr("datetime") ||
     $("time[datetime]").first().attr("datetime") ||
     undefined;
-  const dateModified =
-    $('meta[property="article:modified_time"]').attr("content") || undefined;
-  const authorName =
+  const htmlModified =
+    $('meta[property="article:modified_time"]').attr("content") ||
+    $('meta[property="og:updated_time"]').attr("content") ||
+    undefined;
+  const htmlAuthor =
     $('[rel="author"], .author, [itemprop="author"]').first().text().trim() ||
     $('meta[name="author"]').attr("content")?.trim() ||
     undefined;
 
-  if (!datePublished && !authorName) return null;
+  // Fall back to dates / author carried in the page's own JSON-LD (Yoast et al.
+  // ship them on the WebPage node even when the <head> has no article: tags).
+  const inherited =
+    existing.map((e) => e.props).find((p) => p["datePublished"] || p["dateModified"] || p["author"]) ?? {};
+  const inheritedAuthor =
+    typeof inherited["author"] === "string"
+      ? (inherited["author"] as string)
+      : inherited["author"] && typeof inherited["author"] === "object"
+        ? ((inherited["author"] as Record<string, unknown>)["name"] as string | undefined)
+        : undefined;
+  const orgId = existing.find((e) =>
+    ([] as string[]).concat(e.type as string | string[]).includes("Organization"),
+  )?.id;
+
+  const datePublished =
+    htmlPublished ||
+    (typeof inherited["datePublished"] === "string" ? (inherited["datePublished"] as string) : undefined);
+  const dateModified =
+    htmlModified ||
+    (typeof inherited["dateModified"] === "string" ? (inherited["dateModified"] as string) : undefined);
+  const authorName = htmlAuthor || inheritedAuthor || undefined;
+
+  // Emit when either (a) the page carries its own article metadata, or (b) the
+  // classifier picked a *specific* article subtype (TechArticle from /docs/,
+  // BlogPosting from /blog/, …) and we have a date to anchor it. A bare
+  // "Article" hint — which only comes from og:type=article — is not enough on
+  // its own, or every Yoast page would sprout an Article node.
+  const hasHtmlMeta = !!htmlPublished || !!htmlAuthor;
+  const specificWithDate = type !== "Article" && (!!datePublished || !!dateModified);
+  if (!hasHtmlMeta && !specificWithDate) return null;
 
   return {
-    type: "Article",
+    type,
     props: pruneEmpty({
-      headline: cleanHeadline($, input.title),
+      headline,
       url: input.canonicalUrl || input.sourceUrl,
       datePublished,
       dateModified,
       author: authorName
         ? { "@type": "Person", name: authorName }
-        : undefined,
+        : orgId
+          ? { "@id": orgId }
+          : undefined,
+      publisher: orgId ? { "@id": orgId } : undefined,
       image: $('meta[property="og:image"]').attr("content")?.trim(),
+    }),
+    _source: "deterministic",
+  };
+}
+
+/**
+ * Step-by-step guide → HowTo. Two strategies: headings shaped like "Step 1 …"
+ * / "Schritt 2 …", or a single ordered list with several substantial items.
+ * Returns null unless at least two steps are found.
+ */
+function extractHowTo($: cheerio.CheerioAPI, input: NormalizedInput): Entity | null {
+  const steps: { name: string; text: string }[] = [];
+
+  $("h2, h3").each((_, el) => {
+    const heading = $(el).text().trim().replace(/\s+/g, " ");
+    if (!/^(step|schritt)\s*\d+/i.test(heading)) return;
+    const body = $(el).nextUntil("h2, h3").text().trim().replace(/\s+/g, " ");
+    const name = heading.replace(/^(step|schritt)\s*\d+[\s:.)–-]*/i, "").trim();
+    steps.push({ name: name || heading, text: body || name || heading });
+  });
+
+  if (steps.length < 2) {
+    steps.length = 0;
+    const ol = $(".entry-content ol, article ol, main ol, .post-content ol")
+      .filter((_, el) => $(el).children("li").length >= 3)
+      .first();
+    ol.children("li").each((_, li) => {
+      const text = $(li).text().trim().replace(/\s+/g, " ");
+      if (text.length >= 15) steps.push({ name: text.slice(0, 80), text });
+    });
+  }
+
+  if (steps.length < 2) return null;
+
+  return {
+    type: "HowTo",
+    props: pruneEmpty({
+      name: cleanHeadline($, input.title),
+      description:
+        $('meta[name="description"]').attr("content")?.trim() ||
+        $('meta[property="og:description"]').attr("content")?.trim(),
+      step: steps.slice(0, 20).map((s, i) =>
+        pruneEmpty({
+          "@type": "HowToStep",
+          position: i + 1,
+          name: s.name.slice(0, 120),
+          text: s.text.slice(0, 500),
+        }),
+      ),
     }),
     _source: "deterministic",
   };
