@@ -58,15 +58,26 @@ export async function reconcile(
     }
     if (!e.id) e.id = mintId(base, e);
 
-    // The bare page URL is the WebPage node's @id. Anything else that ends up
-    // holding it collides with the page node and gets dropped in finalize.
+    // @id hygiene for non-page, non-media nodes. A fragment-less @id is only
+    // legitimate when the node genuinely lives at that URL (its own `url`
+    // property says so). Otherwise it's either the page URL (→ collides with
+    // the WebPage node, dropped in finalize) or a path-style id the LLM
+    // fabricated for a page-part (ItemList, ArticleSection, …). Re-mint to a
+    // fragment id under the page.
     const primaryType = Array.isArray(e.type) ? e.type[0]! : e.type;
     if (
       !PAGE_TYPES.has(primaryType) &&
-      !e.id.includes("#") &&
-      e.id.replace(/\/$/, "") === base
+      !MEDIA_TYPES.has(primaryType) &&
+      !e.id.includes("#")
     ) {
-      e.id = mintId(base, e);
+      const bare = e.id.replace(/\/$/, "");
+      const ownUrl = firstString(e.props["url"]);
+      const claimsThisUrl =
+        e._source === "existing" ||
+        (!!ownUrl && ownUrl.replace(/\/$/, "") === bare);
+      if (bare === base || !claimsThisUrl) {
+        e.id = mintId(base, e);
+      }
     }
 
     if (e._key) {

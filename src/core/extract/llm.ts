@@ -56,6 +56,7 @@ Your mission: produce the MOST COMPREHENSIVE, SPECIFIC, and ACCURATE set of sche
 - STRICT EXTRACTION ONLY: every value you emit must be explicitly present in the page content. Do NOT generate, guess, or infer URLs, email addresses, phone numbers, social media handles, identifiers, or any other data that is not literally written on the page. If a piece of information is not on the page, omit the property entirely.
 - Do NOT emit sameAs under any circumstances — not for people, organizations, places, or any other entity type.
 - Link entities by "@id" reference rather than deep nesting when the target entity is already in the graph.
+- "@id" convention: for a node you create that is a PART of this page (the article, a section, a list, a HowTo, a sub-entity) use a fragment id: "<pageURL>#article", "<pageURL>#howto-embedding", "<pageURL>#feature-list". Use a bare URL as an "@id" ONLY for an entity whose own canonical page IS that URL (that entity also has "url" set to the same value). Never give a page-part the bare page URL as its "@id" — that belongs to the WebPage node.
 - Output STRICT JSON: {"entities": [...]} where each element has "@type" plus properties. No markdown, no prose.
 
 ## Do not duplicate the existing graph (baseGraph)
