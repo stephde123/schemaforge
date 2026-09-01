@@ -57,7 +57,7 @@ scripts/
   entrypoint.sh       # Docker-Entrypoint
 data/
   registry.json       # Persistent: key→id-Mapping (Entity-Gedächtnis)
-  schemaorg-current-https.jsonld  # Schema.org-Vokabular-Dump (~5 MB)
+  schemaorg-current-https.jsonld  # Schema.org-Vokabular-Dump (~1.5 MB); entrypoint.sh refresht ihn bei Deploy wenn >30 Tage alt
 ```
 
 ### API-Routen (server.ts)
@@ -68,7 +68,7 @@ data/
 | POST | `/api/login` | nein | Gibt Session-Token (24h TTL) zurück |
 | POST | `/api/logout` | Session | Invalidiert Token |
 | GET | `/api/me` | Session | Prüft ob Session gültig |
-| POST | `/api/generate` | optional | Hauptendpoint: erzeugt JSON-LD |
+| POST | `/api/generate` | optional | Hauptendpoint: erzeugt JSON-LD. Rate-Limit: 20/min anonym (per IP), 120/min eingeloggt (per User) → 429 + `Retry-After` |
 | GET | `/api/registry/stats` | Session | Registry-Inhalt, filterbar per `?q=` |
 | DELETE | `/api/registry` | Session | Registry leeren (mit `?q=` nur passende Einträge) |
 

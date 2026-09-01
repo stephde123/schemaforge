@@ -187,6 +187,43 @@ function getToken(req: express.Request): string | null {
   return null;
 }
 
+/**
+ * Sliding-window in-memory rate limiter. /api/generate fetches an arbitrary
+ * remote URL and may call an LLM per request, so an unbounded public endpoint
+ * is a real abuse vector. Keyed by client IP; authenticated callers get a
+ * higher ceiling.
+ */
+function createRateLimiter(windowMs: number) {
+  const hits = new Map<string, number[]>();
+  let lastSweep = Date.now();
+
+  return function check(key: string, max: number): { ok: boolean; retryAfter: number } {
+    const now = Date.now();
+
+    if (now - lastSweep > windowMs) {
+      for (const [k, ts] of hits) {
+        const kept = ts.filter((t) => now - t < windowMs);
+        if (kept.length) hits.set(k, kept);
+        else hits.delete(k);
+      }
+      lastSweep = now;
+    }
+
+    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) {
+      hits.set(key, recent);
+      return { ok: false, retryAfter: Math.ceil((windowMs - (now - recent[0]!)) / 1000) };
+    }
+    recent.push(now);
+    hits.set(key, recent);
+    return { ok: true, retryAfter: 0 };
+  };
+}
+
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_ANON = 20;
+const RATE_MAX_AUTHED = 120;
+
 async function main() {
   const cfg = loadConfig();
   const engine = await Engine.create(cfg);
@@ -195,6 +232,7 @@ async function main() {
     process.env.AUTH_SECRET || `${cfg.authUser}::${cfg.authPassword}`,
   );
   const getSession = (req: express.Request) => auth.verify(getToken(req));
+  const rateLimit = createRateLimiter(RATE_WINDOW_MS);
   const requireSession = (
     req: express.Request,
     res: express.Response,
@@ -205,6 +243,7 @@ async function main() {
   };
 
   const app = express();
+  app.set("trust proxy", 1); // one hop: nginx in front of the container
   app.use(express.json({ limit: "5mb" }));
   app.use(express.static(join(__dirname, "public")));
 
@@ -279,6 +318,18 @@ async function main() {
     }
 
     const isLoggedIn = session !== null;
+
+    const rl = rateLimit(
+      isLoggedIn ? `u:${session!.user}` : `ip:${req.ip}`,
+      isLoggedIn ? RATE_MAX_AUTHED : RATE_MAX_ANON,
+    );
+    if (!rl.ok) {
+      res.set("Retry-After", String(rl.retryAfter));
+      return res.status(429).json({
+        error: `Zu viele Anfragen — bitte in ${rl.retryAfter}s erneut versuchen.`,
+      });
+    }
+
     let llmOverride = undefined;
     let effectiveMode = mode;
 
