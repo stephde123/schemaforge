@@ -248,7 +248,13 @@ async function main() {
   app.use(express.static(join(__dirname, "public")));
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, provider: cfg.llmProvider, version: API_VERSION, runCount: engine.getRunCount() });
+    res.json({
+      ok: true,
+      provider: cfg.llmProvider,
+      version: API_VERSION,
+      runCount: engine.getRunCount(),
+      schema: engine.getSchemaInfo(),
+    });
   });
 
   app.delete("/api/registry", requireSession, async (req, res) => {

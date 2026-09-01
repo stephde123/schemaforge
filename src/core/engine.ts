@@ -40,6 +40,10 @@ export class Engine {
 
   getRunCount(): number { return this.registry.getRunCount(); }
 
+  getSchemaInfo(): { loaded: boolean; types: number } {
+    return { loaded: this.brain.loaded, types: this.brain.allTypes().length };
+  }
+
   async clearRegistry(): Promise<void> { await this.registry.clear(); }
 
   async pruneRegistry(q: string): Promise<number> {
