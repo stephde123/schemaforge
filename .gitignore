@@ -2,6 +2,7 @@ node_modules
 dist
 .env
 data/registry.json
+data/*.tmp
 data/schemaorg-current-https.jsonld
 *.log
 .DS_Store

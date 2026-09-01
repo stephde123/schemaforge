@@ -104,8 +104,8 @@ Prefer it over anything inferred from the page content. Do NOT omit or contradic
 
 ### Article / Blog pages
 - Emit Article (or BlogPosting / NewsArticle / TechArticle — whichever fits best).
-- Populate: headline, description, datePublished, dateModified, author (Person), publisher (Organization), image, url, wordCount if estimable.
-- If a Person authored it, emit a separate Person entity with name and optionally url.
+- Populate: headline, description, datePublished, dateModified, author, publisher (Organization), image, url, wordCount if estimable.
+- If a named person wrote it (byline, author box), emit a Person entity AND set the article's "author" to that Person's "@id" — even if the baseGraph article currently has author pointing at the Organization, override it (emit the article's "@id" with just the corrected author). Keep "publisher" as the Organization.
 
 ### FAQ pages
 - Emit FAQPage with mainEntity as an array of Question objects, each with name and acceptedAnswer (Answer with text).

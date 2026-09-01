@@ -106,7 +106,10 @@ REGISTRY_PATH=./data/registry.json
 SCHEMA_DUMP_PATH=./data/schemaorg-current-https.jsonld
 AUTH_USER=stephan
 AUTH_PASSWORD=TestSchemaForge
+AUTH_SECRET=            # optional: signs session tokens; unset → authUser::authPassword
 ```
+
+Session-Tokens sind stateless (HMAC-signiert), überleben also einen Redeploy. Ohne `AUTH_SECRET` hängt die Signatur am Passwort — Passwortänderung loggt dann alle aus.
 
 ### npm-Scripts
 
