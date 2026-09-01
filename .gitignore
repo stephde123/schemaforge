@@ -7,3 +7,8 @@ data/schemaorg-current-https.jsonld
 *.log
 .DS_Store
 .idea
+
+# ad-hoc diagnostic scratch (kept local, not shipped)
+test-allTypes.mjs
+test-allTypes.ts
+_t.ts
