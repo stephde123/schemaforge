@@ -144,7 +144,8 @@ Die Registry speichert **nur** `key → id`. Keine Properties, keine LLM-Antwort
 ```
 schemaforge-wp.php          # Plugin-Header, Konstanten, Autoloader, Bootstrap
 includes/
-  class-api-client.php      # HTTP-Calls zu /api/login + /api/generate (mit Token-Cache)
+  class-api-client.php      # HTTP-Calls zu /api/login + /api/generate (mit Token-Cache, Retry-on-401)
+  class-bulk.php            # Bulk-Action "Markup erzeugen" + Schema-Statusspalte auf den Post-Listen
   class-detector.php        # Erkennt aktive SEO-Plugins (Yoast, RankMath, …) auf dem Post
   class-encryption.php      # Verschlüsselt gespeicherte API-Credentials (AES via openssl)
   class-generator.php       # Orchestriert: wann + wie Schema für einen Post erzeugt wird
